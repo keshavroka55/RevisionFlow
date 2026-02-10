@@ -1,0 +1,37 @@
+# Dependencies
+node_modules
+/dist
+/.next
+/out
+/build
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Prisma
+/back-end/generated
+/back-end/prisma/*.db
+/back-end/prisma/*.db-journal
+
+# OS files
+.DS_Store
+thumbs.db
+
+# Other
+Note.txt
