@@ -9,12 +9,14 @@ import Register from "./features/auth/Register.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import ChefDashboard from "./pages/ChefDashboard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
+import Test from "./pages/test.jsx";
 
 function App() {
   return (
     <Router>
       <AuthProvider>
         <Routes>
+            <Route path="/" element={<Test />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />

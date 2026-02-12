@@ -1,4 +1,4 @@
-import { prisma } from "../prisma.ts";
+import prisma from "../prisma.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { config } from "../config/config.js";
@@ -6,6 +6,10 @@ import { config } from "../config/config.js";
 export const registerUser = async ({ name, email, password, role }) => {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw new Error("Email already registered");
+
+  if(!name || !email || !password || !role){
+    throw new Error("All fields are required");
+  }
 
   const salt = await bcrypt.genSalt(10);
   const hashed = await bcrypt.hash(password, salt);
