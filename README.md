@@ -105,47 +105,6 @@ PostgreSQL Database
 
 AI services are used to generate mock tests from user notes.
 
----
-
-## 📂 Project Structure
-
-```
-revisionflow_main/
-│
-├── back-end/
-│   ├── src/
-│   │   ├── controllers/
-│   │   ├── routes/
-│   │   ├── services/
-│   │   ├── middleware/
-│   │   ├── config/
-│   │   ├── app.js
-│   │   └── prisma.js
-│   ├── prisma/
-│   │   └── schema.prisma
-│   ├── package.json
-│   ├── server.js
-│   └── test.js
-│
-├── client/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── features/
-│   │   │   ├── auth/
-│   │   │   └── Ai/
-│   │   ├── context/
-│   │   ├── Routes/
-│   │   ├── App.jsx
-│   │   └── index.js
-│   ├── public/
-│   ├── package.json
-│   └── tsconfig.json
-│
-└── README.md
-```
-
----
 
 ## 🔄 User Workflow
 
@@ -161,64 +120,6 @@ Typical user flow:
 8. User tracks learning progress
 
 ---
-
-## 🚀 Installation
-
-### 1. Clone the repository
-```bash
-git clone https://github.com/yourusername/revision-flow.git
-```
-
-### 2. Navigate into the project
-```bash
-cd revisionflow_main
-```
-
-### 3. Install dependencies
-
-**Backend:**
-```bash
-cd back-end
-npm install
-```
-
-**Frontend:**
-```bash
-cd client
-npm install
-```
-
-### 4. Start development server
-
-**Backend:**
-```bash
-cd back-end
-npm run dev
-```
-
-**Frontend:**
-```bash
-cd client
-npm start
-```
-
----
-
-## 🔐 Environment Variables
-
-Create a `.env` file in the backend directory.
-
-**Example:**
-
-```env
-PORT=5000
-DATABASE_URL=postgresql://username:password@localhost:5432/revisionflow
-JWT_SECRET=your_secret_key
-STRIPE_SECRET_KEY=your_stripe_key
-EMAIL_USER=your_email
-EMAIL_PASSWORD=your_email_password
-GEMINI_API_KEY=your_gemini_key
-```
 
 ---
 
