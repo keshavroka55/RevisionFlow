@@ -1,22 +1,538 @@
+// =============================================================================
+// REVISION FLOW — PRISMA SCHEMA
+// Production-level design | PostgreSQL
+// =============================================================================
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  
 }
 
-model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-}
+// =============================================================================
+// ENUMS
+// =============================================================================
 
-enum Role {
+enum UserRole {
   USER
   ADMIN
+}
+
+enum SubscriptionPlan {
+  FREE
+  PREMIUM
+  STUDENT_PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  TRIALING
+  PAST_DUE
+}
+
+enum StudentVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum RevisionStage {
+  DAY_3
+  DAY_7
+  DAY_14
+  DAY_28
+}
+
+enum RevisionStatus {
+  PENDING
+  COMPLETED
+  SKIPPED
+  OVERDUE
+}
+
+enum NoteStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum MasteryLevel {
+  NEW
+  IN_PROGRESS
+  MASTERED
+}
+
+enum CardDifficulty {
+  HARD
+  OKAY
+  EASY
+}
+
+enum TestQuestionType {
+  MCQ
+  TRUE_FALSE
+}
+
+enum OAuthProvider {
+  GOOGLE
+  GITHUB
+}
+
+enum EmailNotificationType {
+  REVISION_REMINDER
+  WELCOME
+  STREAK_ALERT
+  SUBSCRIPTION_UPDATE
+  STUDENT_VERIFICATION
+}
+
+enum EmailStatus {
+  QUEUED
+  SENT
+  FAILED
+  BOUNCED
+}
+
+// =============================================================================
+// USER & AUTH
+// =============================================================================
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  emailVerified     DateTime?
+  passwordHash      String?
+  name              String
+  avatarUrl         String?
+  role              UserRole  @default(USER)
+  timezone          String    @default("UTC")
+  isActive          Boolean   @default(true)
+  lastLoginAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime? // soft delete
+
+  // Relations
+  oauthAccounts       OAuthAccount[]
+  subscription        Subscription?
+  studentVerification StudentVerification?
+  folders             Folder[]
+  notes               Note[]
+  revisionSchedules   RevisionSchedule[]
+  flashcardSessions   FlashcardSession[]
+  mockTestAttempts    MockTestAttempt[]
+  emailLogs           EmailLog[]
+  notificationPrefs   NotificationPreference?
+  streaks             UserStreak?
+  progressStats       UserProgressStats?
+  passwordResetTokens PasswordResetToken[]
+
+  @@index([email])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model OAuthAccount {
+  id                String        @id @default(cuid())
+  userId            String
+  provider          OAuthProvider
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  expiresAt         DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// =============================================================================
+// SUBSCRIPTION & PAYMENTS
+// =============================================================================
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @unique
+  plan                 SubscriptionPlan   @default(FREE)
+  status               SubscriptionStatus @default(ACTIVE)
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  cancelledAt          DateTime?
+  trialStart           DateTime?
+  trialEnd             DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments             Payment[]
+
+  @@index([stripeCustomerId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id              String       @id @default(cuid())
+  subscriptionId  String
+  stripePaymentId String       @unique
+  amount          Int          // in cents
+  currency        String       @default("usd")
+  status          String
+  paidAt          DateTime?
+  createdAt       DateTime     @default(now())
+
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@map("payments")
+}
+
+model StudentVerification {
+  id              String                    @id @default(cuid())
+  userId          String                    @unique
+  institutionName String
+  institutionType String                    // UNIVERSITY, COLLEGE, SCHOOL
+  documentUrl     String?                   // uploaded student ID
+  eduEmail        String?
+  status          StudentVerificationStatus @default(PENDING)
+  verifiedAt      DateTime?
+  expiresAt       DateTime?
+  rejectionReason String?
+  reviewedBy      String?                   // admin user id
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  user            User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("student_verifications")
+}
+
+// =============================================================================
+// FOLDERS & NOTES
+// =============================================================================
+
+model Folder {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  color       String    @default("#4F46E5") // hex color
+  icon        String?
+  description String?
+  isDefault   Boolean   @default(false)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes       Note[]
+
+  @@index([userId])
+  @@index([deletedAt])
+  @@map("folders")
+}
+
+model Note {
+  id             String       @id @default(cuid())
+  userId         String
+  folderId       String
+  title          String
+  content        Json         // rich text as JSON (TipTap/ProseMirror format)
+  contentText    String?      // plain text extract for full-text search
+  status         NoteStatus   @default(ACTIVE)
+  mastery        MasteryLevel @default(NEW)
+  tags           String[]     @default([])
+  wordCount      Int          @default(0)
+  isEmailEnabled Boolean      @default(true)
+  lastRevisedAt  DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder            Folder             @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  revisionSchedules RevisionSchedule[]
+  flashcards        Flashcard[]
+  mockTests         MockTest[]
+
+  @@index([userId])
+  @@index([folderId])
+  @@index([mastery])
+  @@index([deletedAt])
+  @@map("notes")
+}
+
+// =============================================================================
+// REVISION SCHEDULES
+// =============================================================================
+
+model RevisionSchedule {
+  id          String         @id @default(cuid())
+  userId      String
+  noteId      String
+  stage       RevisionStage
+  status      RevisionStatus @default(PENDING)
+  scheduledAt DateTime
+  completedAt DateTime?
+  skippedAt   DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note        Note           @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  emailLogs   EmailLog[]
+
+  @@unique([noteId, stage])
+  @@index([userId, scheduledAt])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("revision_schedules")
+}
+
+// =============================================================================
+// FLASHCARDS
+// =============================================================================
+
+model Flashcard {
+  id            String   @id @default(cuid())
+  noteId        String
+  question      String
+  answer        String
+  hint          String?
+  sortOrder     Int      @default(0)
+  isAiGenerated Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  note         Note                   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  sessionCards FlashcardSessionCard[]
+
+  @@index([noteId])
+  @@map("flashcards")
+}
+
+model FlashcardSession {
+  id               String    @id @default(cuid())
+  userId           String
+  noteId           String
+  totalCards       Int
+  easyCount        Int       @default(0)
+  okayCount        Int       @default(0)
+  hardCount        Int       @default(0)
+  completedAt      DateTime?
+  durationSeconds  Int?
+  createdAt        DateTime  @default(now())
+
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionCards FlashcardSessionCard[]
+
+  @@index([userId])
+  @@index([noteId])
+  @@map("flashcard_sessions")
+}
+
+model FlashcardSessionCard {
+  id          String         @id @default(cuid())
+  sessionId   String
+  flashcardId String
+  difficulty  CardDifficulty
+  answeredAt  DateTime       @default(now())
+
+  session   FlashcardSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  flashcard Flashcard        @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("flashcard_session_cards")
+}
+
+// =============================================================================
+// MOCK TESTS
+// =============================================================================
+
+model MockTest {
+  id             String   @id @default(cuid())
+  noteId         String
+  title          String
+  totalQuestions Int
+  isAiGenerated  Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  note      Note               @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  questions MockTestQuestion[]
+  attempts  MockTestAttempt[]
+
+  @@index([noteId])
+  @@map("mock_tests")
+}
+
+model MockTestQuestion {
+  id           String           @id @default(cuid())
+  testId       String
+  questionText String
+  questionType TestQuestionType @default(MCQ)
+  options      Json             // [{id, text, isCorrect}]
+  explanation  String?
+  sortOrder    Int              @default(0)
+  createdAt    DateTime         @default(now())
+
+  test    MockTest         @relation(fields: [testId], references: [id], onDelete: Cascade)
+  answers MockTestAnswer[]
+
+  @@index([testId])
+  @@map("mock_test_questions")
+}
+
+model MockTestAttempt {
+  id               String    @id @default(cuid())
+  userId           String
+  testId           String
+  score            Float     // percentage 0–100
+  totalQuestions   Int
+  correctAnswers   Int
+  timeTakenSeconds Int?
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  test    MockTest         @relation(fields: [testId], references: [id], onDelete: Cascade)
+  answers MockTestAnswer[]
+
+  @@index([userId])
+  @@index([testId])
+  @@map("mock_test_attempts")
+}
+
+model MockTestAnswer {
+  id             String   @id @default(cuid())
+  attemptId      String
+  questionId     String
+  selectedOption String?
+  isCorrect      Boolean
+  answeredAt     DateTime @default(now())
+
+  attempt  MockTestAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question MockTestQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@map("mock_test_answers")
+}
+
+// =============================================================================
+// EMAIL & NOTIFICATIONS
+// =============================================================================
+
+model EmailLog {
+  id                 String                @id @default(cuid())
+  userId             String
+  revisionScheduleId String?
+  type               EmailNotificationType
+  status             EmailStatus           @default(QUEUED)
+  toEmail            String
+  subject            String
+  sentAt             DateTime?
+  failedAt           DateTime?
+  failureReason      String?
+  retryCount         Int                   @default(0)
+  createdAt          DateTime              @default(now())
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revisionSchedule RevisionSchedule? @relation(fields: [revisionScheduleId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@map("email_logs")
+}
+
+model NotificationPreference {
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+  emailRevisionReminders  Boolean  @default(true)
+  emailStreakAlerts        Boolean  @default(true)
+  reminderTimeHour        Int      @default(9) // 0–23 in user's timezone
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+// =============================================================================
+// GAMIFICATION & PROGRESS
+// =============================================================================
+
+model UserStreak {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  currentStreak    Int       @default(0)
+  longestStreak    Int       @default(0)
+  lastActivityDate DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_streaks")
+}
+
+model DailyActivity {
+  id                 String   @id @default(cuid())
+  userId             String
+  date               DateTime @db.Date
+  revisionsCount     Int      @default(0)
+  notesCreated       Int      @default(0)
+  testsCompleted     Int      @default(0)
+  flashcardsReviewed Int      @default(0)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+  @@map("daily_activities")
+}
+
+model UserProgressStats {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  totalNotes      Int      @default(0)
+  masteredNotes   Int      @default(0)
+  totalRevisions  Int      @default(0)
+  totalFlashcards Int      @default(0)
+  totalTestsTaken Int      @default(0)
+  avgTestScore    Float    @default(0)
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_progress_stats")
 }

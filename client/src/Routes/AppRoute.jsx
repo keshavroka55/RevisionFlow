@@ -1,29 +1,50 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Login from "../features/auth/Login";
-import Register from "../features/auth/Register";
-import Navbar from "../components/Nav";
+import Landing from "../pages/Landing";
+import NotFound from "../pages/NotFound";
+import Login from "../pages/Login";
+import Signup from "../pages/Signup";
 import Dashboard from "../pages/Dashboard";
-import ProtectedRoute from "../components/ProtectedRoute";
-import AdminDashboard from "../pages/AdminDashboard";
-import Test from "../Test/Test";
+import DashboardLayout from "../pages/DashboardLayout";
+import Folders from "../pages/Folders";
+import Notes from "../pages/Notes";
+import RevisionSchedule from "../pages/RevisionSchedule";
+import Revision from "../pages/Revision";
+import MockTests from "../pages/MockTests";
+import Settings from "../pages/Settings";
+import Payment from "../pages/Payment";
+import Upgrade from "../pages/Upgrade";
+import { AppProvider } from "../context/AppContext";
+
+
 
 
 const AppRoute = () => {
     return (
-        <BrowserRouter>
-            <Navbar />
-            <div style={{ padding: "20px" }}>
+        <AppProvider>
+            <BrowserRouter>
                 <Routes>
-                    <Route path="/test" element={<Test/>} />
+                    <Route path="/" element={<Landing />} />
                     <Route path="/login" element={<Login />} />
-                    <Route path="/register" element={<Register />} />
-                    <Route path="/user" element={<Dashboard />} />
-                    <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}><AdminDashboard /></ProtectedRoute>} />
-                    <Route path="*" element={<Login />} />
+                    <Route path="/signup" element={<Signup />} />
+
+                    <Route path="/dashboard" element={<DashboardLayout />}>
+                        <Route index element={<Dashboard />} />
+                        <Route path="folders" element={<Folders />} />
+                        <Route path="notes" element={<Notes />} />
+                        <Route path="schedule" element={<RevisionSchedule />} />
+                        <Route path="revision" element={<Revision />} />
+                        <Route path="tests" element={<MockTests />} />
+                        <Route path="settings" element={<Settings />} />
+                        <Route path="payment" element={<Payment />} />
+                        <Route path="upgrade" element={<Upgrade />} />
+                    </Route>
+
+                    <Route path="*" element={<NotFound />} />
                 </Routes>
-            </div>
-        </BrowserRouter>
+            </BrowserRouter>
+        </AppProvider>
     )
-}
+};
+
 
 export default AppRoute;
