@@ -25,7 +25,7 @@ export const AuthProvider = ({ children }) => {
         else navigate("/dashboard");
       })
       .catch(() => navigate("/login"));
-  }, []);
+  });
 
   return (
     <AuthContext.Provider value={{ user, setUser }}>
