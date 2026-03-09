@@ -5,6 +5,7 @@ import Input from "../../components/Input.jsx";
 function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [role, setRole] = useState("");
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
@@ -26,9 +27,8 @@ function Login() {
         const role = data.user.role;
 
         // role-based redirect
-        if (role === "admin") navigate("/admin");
-        else if (role === "chef") navigate("/chef");
-        else navigate("/dashboard");
+        if (role === "ADMIN") navigate("/admin");
+        else navigate("/user");
     };
 
     return (
@@ -36,6 +36,13 @@ function Login() {
             <h2>Login</h2>
             <Input label="Email:" type="email" value={email} onChange={e => setEmail(e.target.value)} />
             <Input label="Password:" type="password" value={password} onChange={e => setPassword(e.target.value)} />
+            <div style={{ margin: "10px 0" }}>
+                <label>Role:</label>
+                <select value={role} onChange={e => setRole(e.target.value)}>
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
             <button type="submit">Login</button>
             <p>
                 Don't have an account?{" "}

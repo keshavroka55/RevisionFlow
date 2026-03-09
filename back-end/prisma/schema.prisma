@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  
 }
 
 model User {
@@ -17,6 +18,5 @@ model User {
 
 enum Role {
   USER
-  CHEF
   ADMIN
 }
