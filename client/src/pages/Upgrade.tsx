@@ -4,7 +4,7 @@ import { Check, Trophy, Sparkles, Upload, X } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/input';
-import { useApp } from '../context/AppContext';
+import { useApp } from '../contexts/AppContext';
 
 export default function Upgrade() {
   const { user } = useApp();

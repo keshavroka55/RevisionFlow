@@ -3,7 +3,7 @@ import { z } from "zod";
 export const createNoteSchema = z.object({
   folderId: z.string().min(1, "Folder ID is required"),
   title: z.string().min(1, "Title is required").max(255),
-  content: z.record(z.any()).default({}), // TipTap/ProseMirror JSON
+  content: z.any().default({}),
   contentText: z.string().optional(),     // plain text for search
   tags: z.array(z.string()).default([]),
   isEmailEnabled: z.boolean().default(true),
@@ -12,7 +12,7 @@ export const createNoteSchema = z.object({
 export const updateNoteSchema = z.object({
   folderId: z.string().optional(),
   title: z.string().min(1).max(255).optional(),
-  content: z.record(z.any()).optional(),
+  content: z.any().optional(),
   contentText: z.string().optional(),
   tags: z.array(z.string()).optional(),
   status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),

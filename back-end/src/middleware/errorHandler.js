@@ -17,6 +17,13 @@ export const errorHandler = (err, req, res, next) => {
     return res.status(404).json({ success: false, message: "Record not found" });
   }
 
+  if (err.code === "P2003") {
+    return res.status(400).json({
+      success: false,
+      message: "Related record not found",
+    });
+  }
+
   const statusCode = err.statusCode ?? 500;
   const message = err.message ?? "Internal server error";
 

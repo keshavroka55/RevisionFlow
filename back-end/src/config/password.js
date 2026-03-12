@@ -14,6 +14,12 @@ passport.use(
     async (accessToken, refreshToken, profile, done) => {
       try {
         let isNewUser = false; // Track if this is a new user
+        const email = profile?.emails?.[0]?.value;
+        const avatarUrl = profile?.photos?.[0]?.value;
+
+        if (!email) {
+          return done(new Error("Google account email is not available"), null);
+        }
         
         // Check if user exists with Google ID
         let user = await prisma.user.findUnique({
@@ -23,7 +29,7 @@ passport.use(
         if (!user) {
           // Check if user exists with same email
           user = await prisma.user.findUnique({
-            where: { email: profile.emails[0].value },
+            where: { email },
           });
 
           if (user) {
@@ -33,7 +39,7 @@ passport.use(
               data: {
                 googleId: profile.id,
                 emailVerified: true,
-                avatar: user.avatar || profile.photos[0]?.value,
+                avatarUrl: user.avatarUrl || avatarUrl,
               },
             });
             isNewUser = false; // Existing user - just linking Google
@@ -42,9 +48,9 @@ passport.use(
             user = await prisma.user.create({
               data: {
                 googleId: profile.id,
-                email: profile.emails[0].value,
+                email,
                 name: profile.displayName,
-                avatar: profile.photos[0]?.value,
+                avatarUrl,
                 emailVerified: true,
                 role: "USER", // Default role for new users
               },

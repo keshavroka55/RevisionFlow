@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router';
-import { Brain, LayoutDashboard, Folder, FileText, Calendar, Trophy, Settings, Crown, Menu, X, Home, BookOpen } from 'lucide-react';
+import { Brain, LayoutDashboard, Folder, FileText, Calendar, Trophy, Settings, Crown, Menu, X, Home, BookOpen, User } from 'lucide-react';
 import { useState } from 'react';
 
 export default function DashboardLayout() {
@@ -11,10 +11,10 @@ export default function DashboardLayout() {
     { path: '/dashboard/folders', icon: Folder, label: 'Folders' },
     { path: '/dashboard/notes', icon: FileText, label: 'Notes' },
     { path: '/dashboard/schedule', icon: Calendar, label: 'Revision Schedule' },
-    { path: '/dashboard/revision', icon: BookOpen, label: 'Revision' },
+    { path: '/dashboard/revision', icon: BookOpen, label: 'FlashCard Revision' },
     { path: '/dashboard/tests', icon: Trophy, label: 'Mock Tests' },
+    { path: '/dashboard/profile', icon: User, label: 'Profile' },
     { path: '/dashboard/settings', icon: Settings, label: 'Settings' },
-    { path: '/dashboard/upgrade', icon: Crown, label: 'Upgrade' }
 
   ];
 
@@ -56,7 +56,7 @@ export default function DashboardLayout() {
           </nav>
           <div className="p-4 border-t border-border">
             <Link
-              to="/dashboard/payment"
+              to="/dashboard/upgrade"
               className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-primary to-secondary text-white px-4 py-3 rounded-lg hover:opacity-90 transition-opacity"
             >
               <Crown className="w-5 h-5" />
@@ -175,14 +175,14 @@ export default function DashboardLayout() {
             <span className="text-xs">Tests</span>
           </Link>
           <Link
-            to="/dashboard/settings"
+            to="/dashboard/profile"
             className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
-              isActive('/dashboard/settings')
+              isActive('/dashboard/profile')
                 ? 'text-primary'
                 : 'text-muted-foreground'
             }`}
           >
-            <Settings className="w-5 h-5" />
+            <User className="w-5 h-5" />
             <span className="text-xs">Profile</span>
           </Link>
         </nav>

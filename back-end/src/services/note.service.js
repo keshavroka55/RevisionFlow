@@ -1,5 +1,9 @@
 import { prisma } from "../config/db.js";
 import { createError } from "../middleware/errorHandler.js";
+import { createRevisionSchedules } from "./revision.service.js";
+import { trackActivity } from "./activity.service.js";
+
+
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -41,10 +45,12 @@ export const createNote = async (userId, data) => {
   });
 
   // update folder note count in progress stats
-  await prisma.userProgressStats.update({
-    where: { userId },
-    data: { totalNotes: { increment: 1 } },
-  });
+  await trackActivity(userId, "notesCreated");
+
+
+  // call the hooks for auto-revision shedules as per the rule. 
+  await createRevisionSchedules(note.id, userId);
+
 
   return note;
 };
@@ -162,9 +168,10 @@ export const deleteNote = async (noteId, userId) => {
     data: { deletedAt: new Date() },
   });
 
-  await prisma.userProgressStats.update({
+  await prisma.userProgressStats.upsert({
     where: { userId },
-    data: { totalNotes: { decrement: 1 } },
+    update: { totalNotes: { decrement: 1 } },
+    create: { userId, totalNotes: 0 },
   });
 
   return { deleted: true, noteId };

@@ -1,6 +1,4 @@
 // src/config/config.js
-import dotenv from "dotenv";
-dotenv.config();
 
 // this help to show error message instead of slient undenfined error. 
 const required = (key) => {
@@ -37,4 +35,8 @@ export const config = {
   // Helpers
   isDev: (process.env.NODE_ENV || "development") === "development",
   isProd: process.env.NODE_ENV === "production",
+
+  GEMINI_API_KEY: required("GEMINI_API_KEY"),
+
+
 };

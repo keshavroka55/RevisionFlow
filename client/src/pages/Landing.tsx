@@ -17,12 +17,12 @@ export default function Landing() {
               <a href="#how-it-works" className="text-foreground hover:text-primary transition-colors">How it Works</a>
               <a href="#pricing" className="text-foreground hover:text-primary transition-colors">Pricing</a>
               <Link to="/login" className="text-foreground hover:text-primary transition-colors">Login</Link>
-              <Link to="/signup" className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors">
+              <Link to="/register" className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors">
                 Get Started
               </Link>
             </div>
             <div className="md:hidden">
-              <Link to="/signup" className="bg-primary text-white px-4 py-2 rounded-lg text-sm">Sign Up</Link>
+              <Link to="/register" className="bg-primary text-white px-4 py-2 rounded-lg text-sm">Sign Up</Link>
             </div>
           </div>
         </div>
@@ -40,7 +40,7 @@ export default function Landing() {
                 Create notes and automatically revise them using proven spaced repetition.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link to="/signup" className="bg-primary text-white px-8 py-3 rounded-lg hover:bg-primary/90 transition-colors text-center inline-flex items-center justify-center gap-2">
+                <Link to="/register" className="bg-primary text-white px-8 py-3 rounded-lg hover:bg-primary/90 transition-colors text-center inline-flex items-center justify-center gap-2">
                   Start Free <ArrowRight className="w-5 h-5" />
                 </Link>
                 <a href="#how-it-works" className="border-2 border-primary text-primary px-8 py-3 rounded-lg hover:bg-primary/5 transition-colors text-center">
@@ -206,7 +206,7 @@ export default function Landing() {
                   <span className="text-muted-foreground text-sm">Email reminders</span>
                 </li>
               </ul>
-              <Link to="/signup" className="block w-full bg-muted text-foreground px-6 py-3 rounded-lg hover:bg-muted/80 transition-colors text-center">
+              <Link to="/register" className="block w-full bg-muted text-foreground px-6 py-3 rounded-lg hover:bg-muted/80 transition-colors text-center">
                 Get Started
               </Link>
             </div>
@@ -231,7 +231,7 @@ export default function Landing() {
                   <span className="text-white text-sm">Everything in Free</span>
                 </li>
               </ul>
-              <Link to="/signup" className="block w-full bg-white text-primary px-6 py-3 rounded-lg hover:bg-white/90 transition-colors text-center">
+              <Link to="/register" className="block w-full bg-white text-primary px-6 py-3 rounded-lg hover:bg-white/90 transition-colors text-center">
                 Start Premium
               </Link>
             </div>
@@ -252,7 +252,7 @@ export default function Landing() {
                   <span className="text-muted-foreground text-sm">All Premium features</span>
                 </li>
               </ul>
-              <Link to="/signup" className="block w-full bg-accent text-white px-6 py-3 rounded-lg hover:bg-accent/90 transition-colors text-center">
+              <Link to="/register" className="block w-full bg-accent text-white px-6 py-3 rounded-lg hover:bg-accent/90 transition-colors text-center">
                 Verify Student Status
               </Link>
             </div>

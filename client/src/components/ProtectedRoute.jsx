@@ -1,11 +1,10 @@
 // this is used to authenticate end points like @ login required in django as a decorator.
 
-import { useContext } from "react";
 import { Navigate } from "react-router-dom";
-import { AuthContext } from "../context/AuthContext.jsx";
+import { useAuth } from "../contexts/AuthContext";
 
 export const authenticateedRoute = ({ children, allowedRoles }) => {
-  const { user } = useContext(AuthContext);
+  const { user } = useAuth();
 
   if (!user) return <Navigate to="/login" />;
   if (!allowedRoles.includes(user.role)) return <Navigate to="/login" />;
