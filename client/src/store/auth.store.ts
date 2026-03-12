@@ -1,92 +1,162 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import type { User } from "../types/auth.types";
-import { loginAPI, registerAPI, logoutAPI } from "../services/auth.service";
+import { authService } from "../services/auth.service";
+import { User } from "../types/auth.types";
 
-type AuthState = {
+// loadingKeys tracks which operations are currently running
+// e.g. { "auth.login": true, "auth.register": false }
+interface LoadingState {
+  [key: string]: boolean;
+}
+
+interface AuthStore {
+  // ─── State ───────────────────────────────────────
   user: User | null;
-  accessToken: string | null;
-  refreshToken: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
   error: string | null;
+  isAppReady: boolean;    // false until /me check completes on startup
+  loadingKeys: LoadingState;
 
-  register: (name: string, email: string, password: string) => Promise<void>;
+  // ─── Actions ─────────────────────────────────────
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  forgotPassword: (email: string) => Promise<string>;
+  resetPassword: (token: string, newPassword: string) => Promise<string>;
+  loginWithGoogle: () => void;
+  initializeAuth: () => Promise<void>;  // call on app startup
   clearError: () => void;
-};
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
+  // runWithLoading wraps any async function and tracks its loading key
+  // usage: runWithLoading("auth.login", async () => { ... })
+  runWithLoading: <T>(key: string, fn: () => Promise<T>) => Promise<T>;
+}
 
-      register: async (name, email, password) => {
-        set({ isLoading: true, error: null });
-        try {
-          const res = await registerAPI({ name, email, password });
-          set({
-            user: res.data.user,
-            accessToken: res.data.accessToken,
-            refreshToken: res.data.refreshToken,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-        } catch (err: any) {
-          set({ error: err.message, isLoading: false });
-          throw err;
-        }
-      },
+export const useAuthStore = create<AuthStore>((set, get) => ({
 
-      login: async (email, password) => {
-        set({ isLoading: true, error: null });
-        try {
-          const res = await loginAPI({ email, password });
-          set({
-            user: res.data.user,
-            accessToken: res.data.accessToken,
-            refreshToken: res.data.refreshToken,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-        } catch (err: any) {
-          set({ error: err.message, isLoading: false });
-          throw err;
-        }
-      },
+  // ─── Initial State ──────────────────────────────
+  user: null,
+  error: null,
+  isAppReady: false,
+  loadingKeys: {},
 
-      logout: async () => {
-        const token = get().accessToken;
-        try {
-          if (token) await logoutAPI(token);
-        } finally {
-          set({
-            user: null,
-            accessToken: null,
-            refreshToken: null,
-            isAuthenticated: false,
-          });
-        }
-      },
+  // ─── runWithLoading ─────────────────────────────
+  // This is the core utility your components use.
+  // It sets the loading key to true, runs the function, then sets it back to false.
+  // Components call useAuthLoading("auth.login") to read this.
+  runWithLoading: async <T>(key: string, fn: () => Promise<T>): Promise<T> => {
+    // Turn loading ON for this key
+    set((state) => ({
+      loadingKeys: { ...state.loadingKeys, [key]: true },
+    }));
 
-      clearError: () => set({ error: null }),
-    }),
-    {
-      name: "auth-storage",       // key in localStorage
-      partialize: (state) => ({   // only persist these fields
-        user: state.user,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
-        isAuthenticated: state.isAuthenticated,
-      }),
+    try {
+      return await fn(); // run the actual async function
+    } finally {
+      // Always turn loading OFF — whether success or error
+      set((state) => ({
+        loadingKeys: { ...state.loadingKeys, [key]: false },
+      }));
     }
-  )
-);
+  },
 
-// global state with  zustand. better than prop drilling. (understand the full implementations and logic. )
+  // ─── initializeAuth ────────────────────────────
+  // Called ONCE when app starts (in main.tsx or App.tsx)
+  // Checks if user is already logged in via saved token
+  initializeAuth: async () => {
+    try {
+      const user = await authService.getMe(); // GET /api/auth/me
+      set({ user });
+    } catch {
+      // Token missing or expired — user stays null (not logged in)
+      set({ user: null });
+    } finally {
+      set({ isAppReady: true }); // app is ready to render regardless
+    }
+  },
+
+  // ─── login ────────────────────────────────────
+  login: async (email, password) => {
+    set({ error: null });
+    try {
+      const { user } = await authService.login({ email, password });
+      set({ user });
+    } catch (err: any) {
+      const message = err.response?.data?.message || "Login failed";
+      set({ error: message });
+      throw err; // re-throw so component's catch block runs
+    }
+  },
+
+  // ─── register ─────────────────────────────────
+  register: async (name, email, password) => {
+    set({ error: null });
+    try {
+      await authService.register({ name, email, password });
+      // After register, log them in automatically
+      const { user } = await authService.login({ email, password });
+      set({ user });
+    } catch (err: any) {
+      const message = err.response?.data?.message || "Registration failed";
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  // ─── logout ───────────────────────────────────
+  logout: async () => {
+    try {
+      await authService.logout();
+    } catch {
+      // Even if backend call fails, always clear client state
+    } finally {
+      set({ user: null, error: null });
+    }
+  },
+
+  // ─── forgotPassword ───────────────────────────
+  // Returns the message string so component can display it
+  forgotPassword: async (email) => {
+    set({ error: null });
+    try {
+      const response = await authService.forgotPassword(email);
+      return response.message;
+    } catch (err: any) {
+      const message = err.response?.data?.message || "Something went wrong";
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  // ─── resetPassword ────────────────────────────
+  resetPassword: async (token, newPassword) => {
+    set({ error: null });
+    try {
+      const response = await authService.resetPassword({ token, newPassword });
+      return response.message;
+    } catch (err: any) {
+      const message = err.response?.data?.message || "Reset failed";
+      set({ error: message });
+      throw err;
+    }
+  },
+
+  // ─── loginWithGoogle ──────────────────────────
+  // Not async — just redirects browser to backend Google OAuth route
+  loginWithGoogle: () => {
+    set({ error: null });
+    try {
+      authService.loginWithGoogle();
+    } catch (err: any) {
+      set({ error: err.message });
+    }
+  },
+
+  // ─── clearError ───────────────────────────────
+  clearError: () => set({ error: null }),
+}));
+
+// ─── Selector Hook ──────────────────────────────────
+// This is what your components call: useAuthLoading("auth.login")
+// Returns true/false for that specific operation key
+export const useAuthLoading = (key: string): boolean => {
+  return useAuthStore((state) => state.loadingKeys[key] ?? false);
+};

@@ -23,16 +23,19 @@ export const registerUser = async ({ name, email, password, role = "USER" }) => 
 
   // Create user
   const user = await prisma.user.create({
-    data: { 
-      name, 
-      email, 
-      passwordHash, 
+    data: {
+      name,
+      email,
+      passwordHash,
       role,
+      emailVerified: false,
       timezone: "UTC", // Default timezone
     },
   });
 
   console.log("✓ User registered successfully:", user.email);
+  console.log("Registred User:", { id: user.id, name: user.name, email: user.email, role: user.role })
+
   return user;
 };
 
@@ -64,7 +67,7 @@ export const loginUser = async ({ email, password }) => {
  */
 export const requestPasswordReset = async (email) => {
   const user = await prisma.user.findUnique({ where: { email } });
-  
+
   if (!user) {
     // Security: don't reveal if email exists
     return { message: "If email exists, reset link has been sent" };
@@ -85,7 +88,7 @@ export const requestPasswordReset = async (email) => {
 
   // TODO: Send email with reset link
   // await sendPasswordResetEmail(user.email, resetToken);
-  
+
   console.log("✓ Password reset token created for:", user.email);
   return { message: "If email exists, reset link has been sent" };
 };
@@ -127,5 +130,8 @@ export const resetPassword = async (token, newPassword) => {
   console.log("✓ Password reset successful for user ID:", resetToken.userId);
   return { message: "Password reset successful" };
 };
+
+
+
 
 

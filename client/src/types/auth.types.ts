@@ -1,31 +1,37 @@
-export type User = {
+export interface User {
   id: string;
   name: string;
   email: string;
-  avatarUrl: string | null;
   role: "USER" | "ADMIN";
   timezone: string;
   createdAt: string;
-};
+}
 
-export type AuthResponse = {
-  success: boolean;
-  message: string;
-  data: {
-    user: User;
-    accessToken: string;
-    refreshToken: string;
-  };
-};
-
-export type RegisterPayload = {
+export interface RegisterInput {
   name: string;
   email: string;
   password: string;
-  timezone?: string;
-};
+}
 
-export type LoginPayload = {
+export interface LoginInput {
   email: string;
   password: string;
-};
+}
+
+// What POST /api/auth/login returns
+// Your backend returns { user, token } from loginUser()
+export interface LoginResponse {
+  user: User;
+  token: string;
+}
+
+// What POST /api/auth/forgot-password and reset-password return
+export interface MessageResponse {
+  message: string;
+}
+
+// What you send to POST /api/auth/reset-password
+export interface ResetPasswordInput {
+  token: string;
+  newPassword: string;
+}

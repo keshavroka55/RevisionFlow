@@ -1,33 +1,50 @@
-import { Link, useNavigate } from 'react-router';
-import { useState } from 'react';
-import { Brain, Mail, Lock } from 'lucide-react';
-import { useAuthStore } from '../store/auth.store';
+import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Brain, Mail, Lock } from "lucide-react";
+import { useAuthStore, useAuthLoading } from "../store/auth.store";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, error, clearError, runWithLoading, loginWithGoogle } = useAuthStore();
+  const isLoginLoading = useAuthLoading("auth.login");
+  const isGoogleLoading = useAuthLoading("auth.google");
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [oauthError, setOauthError] = useState("");
+
+  // true if EITHER login OR google is in progress
+  const isLoading = isLoginLoading || isGoogleLoading;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setOauthError("");
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      await runWithLoading("auth.login", async () => {
+        await login(email, password);
+        navigate("/dashboard");
+      });
     } catch {
-      // error is already in store
+      // error is already set inside the store's login action
+      // no need to do anything here
     }
   };
 
-  const handleGoogleLogin = () => {
-    // Google OAuth — hook up later
-    navigate('/dashboard');
+  const handleGoogleLogin = async () => {
+    setOauthError("");
+    try {
+      await runWithLoading("auth.google", async () => {
+        loginWithGoogle(); // redirects browser — throws if URL not configured
+      });
+    } catch (err: any) {
+      setOauthError(err?.message || "Unable to start Google login.");
+    }
   };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="max-w-md w-full">
+
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 mb-6">
             <Brain className="w-10 h-10 text-primary" />
@@ -39,17 +56,28 @@ export default function Login() {
 
         <div className="bg-white rounded-xl shadow-lg border border-border p-8">
 
-          {/* Error message */}
+          {/* Store error — from login() action */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
               <p className="text-sm text-red-600">{error}</p>
-              <button onClick={clearError} className="text-red-400 hover:text-red-600 text-lg leading-none">✕</button>
+              <button onClick={clearError} className="text-red-400 hover:text-red-600 text-lg leading-none">
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Local error — only for Google OAuth config issues */}
+          {oauthError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">{oauthError}</p>
             </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label htmlFor="email" className="block text-sm mb-2 text-foreground">Email</label>
+              <label htmlFor="email" className="block text-sm mb-2 text-foreground">
+                Email
+              </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
@@ -66,7 +94,9 @@ export default function Login() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm mb-2 text-foreground">Password</label>
+              <label htmlFor="password" className="block text-sm mb-2 text-foreground">
+                Password
+              </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
@@ -84,7 +114,10 @@ export default function Login() {
 
             <div className="flex items-center justify-between">
               <label className="flex items-center">
-                <input type="checkbox" className="rounded border-border text-primary focus:ring-primary" />
+                <input
+                  type="checkbox"
+                  className="rounded border-border text-primary focus:ring-primary"
+                />
                 <span className="ml-2 text-sm text-muted-foreground">Remember me</span>
               </label>
               <Link to="/forgot-password" className="text-sm text-primary hover:underline">
@@ -97,19 +130,21 @@ export default function Login() {
               disabled={isLoading}
               className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isLoading ? (
+              {isLoginLoading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Logging in...
                 </>
-              ) : "Log In"}
+              ) : (
+                "Log In"
+              )}
             </button>
           </form>
 
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border"></div>
+                <div className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="px-2 bg-white text-muted-foreground">Or continue with</span>
@@ -118,6 +153,7 @@ export default function Login() {
 
             <button
               onClick={handleGoogleLogin}
+              disabled={isLoading}
               className="mt-4 w-full bg-white border-2 border-border text-foreground py-3 rounded-lg hover:bg-background transition-colors flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -126,13 +162,15 @@ export default function Login() {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
-              Log in with Google
+              {isGoogleLoading ? "Connecting to Google..." : "Log in with Google"}
             </button>
           </div>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            Don't have an account?{' '}
-            <Link to="/signup" className="text-primary hover:underline">Create Account</Link>
+            Don't have an account?{" "}
+            <Link to="/register" className="text-primary hover:underline">
+              Create Account
+            </Link>
           </p>
         </div>
       </div>

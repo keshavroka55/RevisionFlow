@@ -105,7 +105,6 @@ enum EmailStatus {
 model User {
   id                String    @id @default(cuid())
   email             String    @unique
-  emailVerified     DateTime?
   passwordHash      String?
   name              String
   avatarUrl         String?
@@ -116,6 +115,12 @@ model User {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime? // soft delete
+     // continue with google Auth related fields 
+  googleId            String?   @unique @map("google_id")
+  emailVerified       Boolean   @default(false) @map("email_verified")
+  emailVerificationToken String? @map("email_verification_token")
+  passwordResetToken  String?   @map("password_reset_token")
+  passwordResetExpiry DateTime? @map("password_reset_expiry")
 
   // Relations
   oauthAccounts       OAuthAccount[]
@@ -304,6 +309,8 @@ model RevisionSchedule {
   scheduledAt DateTime
   completedAt DateTime?
   skippedAt   DateTime?
+  sessionSlot    Int    // new — 1 or 2 (which session today)
+  sessionOrder   Int 
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
@@ -480,6 +487,8 @@ model NotificationPreference {
   emailRevisionReminders  Boolean  @default(true)
   emailStreakAlerts        Boolean  @default(true)
   reminderTimeHour        Int      @default(9) // 0–23 in user's timezone
+  reminderTimeMinute  Int   // new — e.g. 30 for 8:30 PM
+  reminderTimezone    String
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
