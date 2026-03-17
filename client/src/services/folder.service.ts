@@ -17,19 +17,19 @@ export const folderService = {
   // GET /api/folders/:id
   getById: async (id: string): Promise<Folder> => {
     const response = await api.get(`/folders/${id}`);
-    return response.data;
+    return response.data.folder;
   },
 
   // POST /api/folders
   create: async (data: CreateFolderInput): Promise<Folder> => {
     const response = await api.post("/folders", data);
-    return response.data;
+    return response.data.folder;
   },
 
   // PATCH /api/folders/:id
   update: async (id: string, data: UpdateFolderInput): Promise<Folder> => {
     const response = await api.patch(`/folders/${id}`, data);
-    return response.data;
+    return response.data.folder;
   },
 
   // DELETE /api/folders/:id

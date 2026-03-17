@@ -1,88 +1,95 @@
-import { useState } from 'react';
-import { Play, CheckCircle, XCircle, Trophy, RotateCcw, ChevronRight } from 'lucide-react';
-
-interface Question {
-  id: number;
-  question: string;
-  options: string[];
-  correctAnswer: number;
-}
-
-const mockQuestions: Question[] = [
-  {
-    id: 1,
-    question: 'What is the principle of superposition in Quantum Mechanics?',
-    options: [
-      'A particle can only be in one state at a time',
-      'A quantum system can exist in multiple states simultaneously',
-      'Particles always have definite positions',
-      'Energy is always conserved',
-    ],
-    correctAnswer: 1,
-  },
-  {
-    id: 2,
-    question: 'What is the time complexity of searching in a balanced Binary Search Tree?',
-    options: ['O(n)', 'O(log n)', 'O(n²)', 'O(1)'],
-    correctAnswer: 1,
-  },
-  {
-    id: 3,
-    question: 'Which of these is the correct conjugation of "estar" for "nosotros"?',
-    options: ['estamos', 'están', 'estoy', 'está'],
-    correctAnswer: 0,
-  },
-];
+import { useEffect, useMemo, useState } from "react";
+import {
+  Play,
+  CheckCircle,
+  XCircle,
+  Trophy,
+  RotateCcw,
+  ChevronRight,
+  Loader,
+  FileText,
+} from "lucide-react";
+import { useMockTestStore } from "../store/mocktest.store";
+import { useNoteStore } from "../store/note.store";
 
 export default function MockTests() {
-  const [testStarted, setTestStarted] = useState(false);
+  const { notes, fetchNotes } = useNoteStore();
+  const {
+    currentTest,
+    result,
+    isGenerating,
+    isSubmitting,
+    error,
+    generateTest,
+    submitTest,
+    reset,
+    clearError,
+  } = useMockTestStore();
+
+  const [selectedNoteId, setSelectedNoteId] = useState("");
+  const [questionCount, setQuestionCount] = useState(8);
+  const [difficulty, setDifficulty] = useState<"EASY" | "MEDIUM" | "HARD" | "MIXED">("MIXED");
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<(number | null)[]>(
-    new Array(mockQuestions.length).fill(null)
-  );
-  const [showResults, setShowResults] = useState(false);
-  const [selectedFolder, setSelectedFolder] = useState('Physics');
-  const [numQuestions, setNumQuestions] = useState(5);
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
+  const [writtenAnswers, setWrittenAnswers] = useState<Record<string, string>>({});
+  const [answerMode, setAnswerMode] = useState<"objective" | "exam">("objective");
 
-  const handleStartTest = () => {
-    setTestStarted(true);
-    setCurrentQuestion(0);
-    setSelectedAnswers(new Array(mockQuestions.length).fill(null));
-    setShowResults(false);
-  };
+  useEffect(() => {
+    fetchNotes();
+  }, []);
 
-  const handleSelectAnswer = (answerIndex: number) => {
-    const newAnswers = [...selectedAnswers];
-    newAnswers[currentQuestion] = answerIndex;
-    setSelectedAnswers(newAnswers);
-  };
-
-  const handleNext = () => {
-    if (currentQuestion < mockQuestions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
-      setShowResults(true);
+  useEffect(() => {
+    if (!selectedNoteId && notes.length > 0) {
+      setSelectedNoteId(notes[0].id);
     }
+  }, [notes, selectedNoteId]);
+
+  const question = currentTest?.questions?.[currentQuestion];
+  const totalQuestions = currentTest?.questions?.length ?? 0;
+  const progress = totalQuestions > 0 ? ((currentQuestion + 1) / totalQuestions) * 100 : 0;
+
+  const score = useMemo(() => {
+    if (!result) return 0;
+    return Math.round(result.score);
+  }, [result]);
+
+  const handleGenerateTest = async () => {
+    if (!selectedNoteId) return;
+    clearError();
+    await generateTest(selectedNoteId, { questionCount, difficulty });
+    setCurrentQuestion(0);
+    setSelectedAnswers({});
+    setWrittenAnswers({});
+  };
+
+  const handleSelectAnswer = (optionId: string) => {
+    if (!question) return;
+    setSelectedAnswers((prev) => ({ ...prev, [question.id]: optionId }));
+  };
+
+  const handleNext = async () => {
+    if (!currentTest || !question) return;
+
+    if (currentQuestion < currentTest.questions.length - 1) {
+      setCurrentQuestion((q) => q + 1);
+      return;
+    }
+
+    const answers = currentTest.questions
+      .map((q) => ({ questionId: q.id, selectedOption: selectedAnswers[q.id] }))
+      .filter((a) => !!a.selectedOption);
+
+    await submitTest(currentTest.id, answers);
   };
 
   const handleRestart = () => {
-    setTestStarted(false);
+    reset();
     setCurrentQuestion(0);
-    setSelectedAnswers(new Array(mockQuestions.length).fill(null));
-    setShowResults(false);
+    setSelectedAnswers({});
+    setWrittenAnswers({});
   };
 
-  const calculateScore = () => {
-    let correct = 0;
-    selectedAnswers.forEach((answer, index) => {
-      if (answer === mockQuestions[index].correctAnswer) {
-        correct++;
-      }
-    });
-    return correct;
-  };
-
-  if (!testStarted) {
+  if (!currentTest && !result) {
     return (
       <div className="p-4 md:p-6 lg:p-8 pb-20 lg:pb-8">
         <div className="max-w-3xl mx-auto">
@@ -93,72 +100,103 @@ export default function MockTests() {
 
           <div className="bg-white rounded-xl border border-border p-8">
             <div className="space-y-6">
-              <div>
-                <label htmlFor="folder" className="block text-sm mb-2 text-foreground">
-                  Select Folder
-                </label>
-                <select
-                  id="folder"
-                  value={selectedFolder}
-                  onChange={(e) => setSelectedFolder(e.target.value)}
-                  className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="Physics">Physics</option>
-                  <option value="Computer Science">Computer Science</option>
-                  <option value="Spanish">Spanish</option>
-                  <option value="All Folders">All Folders</option>
-                </select>
-              </div>
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+                  <p className="text-sm text-red-600">{error}</p>
+                  <button onClick={clearError} className="text-red-400">✕</button>
+                </div>
+              )}
 
-              <div>
-                <label htmlFor="numQuestions" className="block text-sm mb-2 text-foreground">
-                  Number of Questions
-                </label>
-                <select
-                  id="numQuestions"
-                  value={numQuestions}
-                  onChange={(e) => setNumQuestions(Number(e.target.value))}
-                  className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="5">5 Questions</option>
-                  <option value="10">10 Questions</option>
-                  <option value="15">15 Questions</option>
-                  <option value="20">20 Questions</option>
-                </select>
-              </div>
+              {notes.length === 0 ? (
+                <div className="bg-muted rounded-lg p-4 text-center">
+                  <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Create a note first to generate a mock test.</p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label htmlFor="note" className="block text-sm mb-2 text-foreground">
+                      Select Note
+                    </label>
+                    <select
+                      id="note"
+                      value={selectedNoteId}
+                      onChange={(e) => setSelectedNoteId(e.target.value)}
+                      className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      {notes.map((note) => (
+                        <option key={note.id} value={note.id}>
+                          {note.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="questionCount" className="block text-sm mb-2 text-foreground">
+                      Number of Questions
+                    </label>
+                    <select
+                      id="questionCount"
+                      value={questionCount}
+                      onChange={(e) => setQuestionCount(Number(e.target.value))}
+                      className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value={5}>5 Questions</option>
+                      <option value={8}>8 Questions</option>
+                      <option value={10}>10 Questions</option>
+                      <option value={15}>15 Questions</option>
+                      <option value={20}>20 Questions</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="difficulty" className="block text-sm mb-2 text-foreground">
+                      Difficulty Level
+                    </label>
+                    <select
+                      id="difficulty"
+                      value={difficulty}
+                      onChange={(e) => setDifficulty(e.target.value as "EASY" | "MEDIUM" | "HARD" | "MIXED")}
+                      className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="EASY">Easy</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HARD">Hard</option>
+                      <option value="MIXED">Mixed</option>
+                    </select>
+                  </div>
+                </>
+              )}
 
               <div className="bg-secondary/10 border border-secondary/20 rounded-lg p-4">
                 <h3 className="font-semibold text-foreground mb-2">📝 Test Details</h3>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• Multiple choice questions from your notes</li>
-                  <li>• Estimated time: {numQuestions * 2} minutes</li>
-                  <li>• Questions are AI-generated based on your folder content</li>
-                  <li>• Track your performance and identify weak areas</li>
+                  <li>• Multiple choice and true/false questions from your note</li>
+                  <li>• Configurable question count and difficulty</li>
+                  <li>• Optional exam mode: write your own answer for each question</li>
+                  <li>• Questions are AI-generated based on your note content</li>
+                  <li>• Submit and review correct vs wrong + better answer guidance</li>
                 </ul>
               </div>
 
               <button
-                onClick={handleStartTest}
-                className="w-full bg-primary text-white px-8 py-4 rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 text-lg"
+                onClick={handleGenerateTest}
+                disabled={!selectedNoteId || notes.length === 0 || isGenerating}
+                className="w-full bg-primary text-white px-8 py-4 rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Play className="w-6 h-6" />
-                Generate Mock Test
+                {isGenerating ? (
+                  <>
+                    <Loader className="w-6 h-6 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-6 h-6" />
+                    Generate Mock Test
+                  </>
+                )}
               </button>
-            </div>
-          </div>
-
-          <div className="mt-8 bg-gradient-to-r from-primary to-secondary rounded-xl p-6 text-white">
-            <div className="flex items-start gap-4">
-              <div className="bg-white/20 w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Trophy className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-2">Premium Feature</h3>
-                <p className="text-sm text-white/90">
-                  AI-generated mock tests are available for Premium users. Upgrade now to access
-                  unlimited tests and detailed analytics.
-                </p>
-              </div>
             </div>
           </div>
         </div>
@@ -166,10 +204,7 @@ export default function MockTests() {
     );
   }
 
-  if (showResults) {
-    const score = calculateScore();
-    const percentage = Math.round((score / mockQuestions.length) * 100);
-
+  if (result && currentTest) {
     return (
       <div className="p-4 md:p-6 lg:p-8 pb-20 lg:pb-8">
         <div className="max-w-3xl mx-auto">
@@ -184,21 +219,21 @@ export default function MockTests() {
 
             <div className="grid grid-cols-3 gap-4 mb-8">
               <div className="bg-background rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-foreground mb-1">{mockQuestions.length}</div>
+                <div className="text-3xl font-bold text-foreground mb-1">{result.total}</div>
                 <div className="text-sm text-muted-foreground">Questions</div>
               </div>
               <div className="bg-accent/10 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-accent mb-1">{score}</div>
+                <div className="text-3xl font-bold text-accent mb-1">{result.correct}</div>
                 <div className="text-sm text-muted-foreground">Correct</div>
               </div>
               <div className="bg-destructive/10 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-destructive mb-1">{mockQuestions.length - score}</div>
+                <div className="text-3xl font-bold text-destructive mb-1">{result.total - result.correct}</div>
                 <div className="text-sm text-muted-foreground">Wrong</div>
               </div>
             </div>
 
             <div className="bg-gradient-to-r from-primary to-secondary rounded-xl p-6 text-white mb-8 text-center">
-              <div className="text-5xl font-bold mb-2">{percentage}%</div>
+              <div className="text-5xl font-bold mb-2">{score}%</div>
               <div>Your Score</div>
             </div>
 
@@ -211,48 +246,66 @@ export default function MockTests() {
             </button>
           </div>
 
-          {/* Review Answers */}
           <div className="bg-white rounded-xl border border-border p-6">
             <h2 className="text-xl font-semibold text-foreground mb-6">Review Answers</h2>
             <div className="space-y-6">
-              {mockQuestions.map((question, qIndex) => {
-                const userAnswer = selectedAnswers[qIndex];
-                const isCorrect = userAnswer === question.correctAnswer;
+              {currentTest.questions.map((q, qIndex) => {
+                const answerEntry = result.attempt.answers.find((a) => a.questionId === q.id);
+                const userAnswer = answerEntry?.selectedOption;
+                const isCorrect = !!answerEntry?.isCorrect;
 
                 return (
-                  <div key={question.id} className="border-b border-border pb-6 last:border-b-0">
+                  <div key={q.id} className="border-b border-border pb-6 last:border-b-0">
                     <div className="flex items-start gap-3 mb-3">
                       {isCorrect ? (
-                        <CheckCircle className="w-6 h-6 text-accent flex-shrink-0 mt-1" />
+                        <CheckCircle className="w-6 h-6 text-accent shrink-0 mt-1" />
                       ) : (
-                        <XCircle className="w-6 h-6 text-destructive flex-shrink-0 mt-1" />
+                        <XCircle className="w-6 h-6 text-destructive shrink-0 mt-1" />
                       )}
                       <div className="flex-1">
                         <h3 className="font-semibold text-foreground mb-3">
-                          {qIndex + 1}. {question.question}
+                          {qIndex + 1}. {q.questionText}
                         </h3>
                         <div className="space-y-2">
-                          {question.options.map((option, oIndex) => (
+                          {q.options.map((option) => (
                             <div
-                              key={oIndex}
+                              key={option.id}
                               className={`p-3 rounded-lg border ${
-                                oIndex === question.correctAnswer
-                                  ? 'bg-accent/10 border-accent'
-                                  : oIndex === userAnswer && !isCorrect
-                                  ? 'bg-destructive/10 border-destructive'
-                                  : 'bg-background border-border'
+                                option.isCorrect
+                                  ? "bg-accent/10 border-accent"
+                                  : option.id === userAnswer && !isCorrect
+                                    ? "bg-destructive/10 border-destructive"
+                                    : "bg-background border-border"
                               }`}
                             >
-                              {option}
-                              {oIndex === question.correctAnswer && (
+                              {option.text}
+                              {option.isCorrect && (
                                 <span className="ml-2 text-xs text-accent">✓ Correct</span>
                               )}
-                              {oIndex === userAnswer && !isCorrect && (
+                              {option.id === userAnswer && !isCorrect && (
                                 <span className="ml-2 text-xs text-destructive">✗ Your answer</span>
                               )}
                             </div>
                           ))}
                         </div>
+
+                        {(writtenAnswers[q.id] || q.explanation) && (
+                          <div className="mt-4 space-y-2">
+                            <div className="p-3 rounded-lg bg-muted/60 border border-border">
+                              <p className="text-xs text-muted-foreground mb-1">Your written answer</p>
+                              <p className="text-sm text-foreground whitespace-pre-wrap">
+                                {writtenAnswers[q.id]?.trim() || "— Not provided —"}
+                              </p>
+                            </div>
+
+                            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                              <p className="text-xs text-primary mb-1">Better way to answer</p>
+                              <p className="text-sm text-foreground whitespace-pre-wrap">
+                                {q.explanation || "Focus on the core concept and mention why the correct option is valid."}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -265,16 +318,22 @@ export default function MockTests() {
     );
   }
 
-  const question = mockQuestions[currentQuestion];
-  const progress = ((currentQuestion + 1) / mockQuestions.length) * 100;
+  if (!currentTest || !question) {
+    return (
+      <div className="p-8 flex items-center justify-center">
+        <Loader className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 pb-20 lg:pb-8">
       <div className="max-w-3xl mx-auto">
-        {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2 text-sm text-muted-foreground">
-            <span>Question {currentQuestion + 1} of {mockQuestions.length}</span>
+            <span>
+              Question {currentQuestion + 1} of {totalQuestions}
+            </span>
             <span>{Math.round(progress)}%</span>
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -285,36 +344,79 @@ export default function MockTests() {
           </div>
         </div>
 
-        {/* Question Card */}
         <div className="bg-white rounded-xl border border-border p-8 mb-6">
-          <h2 className="text-2xl font-semibold text-foreground mb-8">
-            {question.question}
-          </h2>
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setAnswerMode("objective")}
+              className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                answerMode === "objective"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-background text-muted-foreground border-border hover:border-primary/40"
+              }`}
+            >
+              Objective Mode
+            </button>
+            <button
+              onClick={() => setAnswerMode("exam")}
+              className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                answerMode === "exam"
+                  ? "bg-primary text-white border-primary"
+                  : "bg-background text-muted-foreground border-border hover:border-primary/40"
+              }`}
+            >
+              Exam Writing Mode
+            </button>
+          </div>
+
+          <h2 className="text-2xl font-semibold text-foreground mb-8">{question.questionText}</h2>
+
+          {answerMode === "exam" && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Write your own answer (exam format)
+              </label>
+              <textarea
+                value={writtenAnswers[question.id] || ""}
+                onChange={(e) =>
+                  setWrittenAnswers((prev) => ({
+                    ...prev,
+                    [question.id]: e.target.value,
+                  }))
+                }
+                placeholder="Write the complete answer in your own words..."
+                rows={5}
+                className="w-full px-4 py-3 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-y"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Tip: Also select an option below for automatic scoring.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-3 mb-8">
-            {question.options.map((option, index) => (
+            {question.options.map((option) => (
               <button
-                key={index}
-                onClick={() => handleSelectAnswer(index)}
+                key={option.id}
+                onClick={() => handleSelectAnswer(option.id)}
                 className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                  selectedAnswers[currentQuestion] === index
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/50 hover:bg-primary/5'
+                  selectedAnswers[question.id] === option.id
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/50 hover:bg-primary/5"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                      selectedAnswers[currentQuestion] === index
-                        ? 'border-primary bg-primary'
-                        : 'border-muted-foreground'
+                      selectedAnswers[question.id] === option.id
+                        ? "border-primary bg-primary"
+                        : "border-muted-foreground"
                     }`}
                   >
-                    {selectedAnswers[currentQuestion] === index && (
+                    {selectedAnswers[question.id] === option.id && (
                       <div className="w-2 h-2 bg-white rounded-full" />
                     )}
                   </div>
-                  <span className="text-foreground">{option}</span>
+                  <span className="text-foreground">{option.text}</span>
                 </div>
               </button>
             ))}
@@ -322,16 +424,24 @@ export default function MockTests() {
 
           <button
             onClick={handleNext}
-            disabled={selectedAnswers[currentQuestion] === null}
+            disabled={
+              isSubmitting ||
+              (!selectedAnswers[question.id] && !(writtenAnswers[question.id] || "").trim())
+            }
             className="w-full bg-primary text-white px-8 py-3 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {currentQuestion < mockQuestions.length - 1 ? (
+            {isSubmitting ? (
+              <>
+                <Loader className="w-5 h-5 animate-spin" />
+                Submitting...
+              </>
+            ) : currentQuestion < totalQuestions - 1 ? (
               <>
                 Next Question
                 <ChevronRight className="w-5 h-5" />
               </>
             ) : (
-              'Finish Test'
+              "Finish Test"
             )}
           </button>
         </div>

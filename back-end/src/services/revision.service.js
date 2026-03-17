@@ -289,9 +289,17 @@ export const updateRevisionTime = async (userId, hour, minute) => {
     );
 
     // save new preference
-    await prisma.notificationPreference.update({
+    await prisma.notificationPreference.upsert({
         where: { userId },
-        data: { reminderTimeHour: hour, reminderTimeMinute: minute },
+        update: { reminderTimeHour: hour, reminderTimeMinute: minute },
+        create: {
+            userId,
+            emailRevisionReminders: true,
+            emailStreakAlerts: true,
+            reminderTimeHour: hour,
+            reminderTimeMinute: minute,
+            reminderTimezone: "UTC",
+        },
     });
 
     return { updated: pending.length };

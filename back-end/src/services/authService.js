@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { config } from "../config/config.js";
 import crypto from "crypto";
+import { sendPasswordResetEmail } from "./passwordresetemail.service.js";
 
 /**
  * Register a new user
@@ -30,6 +31,15 @@ export const registerUser = async ({ name, email, password, role = "USER" }) => 
       role,
       emailVerified: false,
       timezone: "UTC", // Default timezone
+      notificationPrefs: {
+        create: {
+          emailRevisionReminders: true,
+          emailStreakAlerts: true,
+          reminderTimeHour: 9,
+          reminderTimeMinute: 0,
+          reminderTimezone: "UTC",
+        },
+      },
     },
   });
 
@@ -73,21 +83,33 @@ export const requestPasswordReset = async (email) => {
     return { message: "If email exists, reset link has been sent" };
   }
 
-  // Generate reset token
+  // Generate reset token (plain token is sent to user, hashed token is stored)
   const resetToken = crypto.randomBytes(32).toString("hex");
+  const hashedResetToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
   const expiresAt = new Date(Date.now() + 3600000); // 1 hour expiry
 
-  // Create password reset token
-  await prisma.passwordResetToken.create({
-    data: {
-      userId: user.id,
-      token: resetToken,
-      expiresAt,
-    },
+  // Keep only one active token per user and send email
+  await prisma.$transaction(async (tx) => {
+    await tx.passwordResetToken.deleteMany({
+      where: {
+        userId: user.id,
+        usedAt: null,
+      },
+    });
+
+    await tx.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token: hashedResetToken,
+        expiresAt,
+      },
+    });
   });
 
-  // TODO: Send email with reset link
-  // await sendPasswordResetEmail(user.email, resetToken);
+  await sendPasswordResetEmail(user.email, resetToken);
 
   console.log("✓ Password reset token created for:", user.email);
   return { message: "If email exists, reset link has been sent" };
@@ -101,10 +123,12 @@ export const resetPassword = async (token, newPassword) => {
     throw new Error("Password must be at least 6 characters");
   }
 
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
   // Find valid reset token
   const resetToken = await prisma.passwordResetToken.findFirst({
     where: {
-      token,
+      token: hashedToken,
       expiresAt: { gte: new Date() }, // Not expired
       usedAt: null, // Not yet used
     },

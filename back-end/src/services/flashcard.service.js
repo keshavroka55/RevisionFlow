@@ -1,6 +1,19 @@
 import { prisma } from "../config/db.js";
 import { generateJSON } from "../utils/gemini.js";
 import { createError } from "../middleware/errorHandler.js";
+import { trackActivity } from "./activity.service.js";
+
+const extractTextFromContent = (node) => {
+  if (!node) return "";
+  if (typeof node === "string") return node;
+  if (Array.isArray(node)) return node.map(extractTextFromContent).join(" ");
+  if (typeof node === "object") {
+    const selfText = typeof node.text === "string" ? node.text : "";
+    const childText = extractTextFromContent(node.content);
+    return [selfText, childText].filter(Boolean).join(" ");
+  }
+  return "";
+};
 
 // ---------------------------------------------------------------------------
 // AI Generate — main feature
@@ -11,14 +24,26 @@ export const generateFlashcards = async (noteId, userId) => {
     where: { id: noteId, userId, deletedAt: null },
   });
   if (!note) throw createError("Note not found", 404);
-  if (!note.contentText) throw createError("Note has no content to generate from", 400);
+
+  const sourceText =
+    (note.contentText ?? "").trim() ||
+    extractTextFromContent(note.content).replace(/\s+/g, " ").trim();
+
+  if (!sourceText) throw createError("Note has no content to generate from", 400);
+
+  if (!note.contentText && sourceText) {
+    await prisma.note.update({
+      where: { id: noteId },
+      data: { contentText: sourceText },
+    });
+  }
 
   // 2. build prompt
   const prompt = `
     You are a study assistant. Based on the following notes, generate 8 flashcards.
     
     Notes:
-    "${note.contentText}"
+    "${sourceText}"
     
     Return ONLY a valid JSON array like this, no extra text:
     [

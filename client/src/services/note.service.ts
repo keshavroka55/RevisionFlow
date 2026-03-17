@@ -19,7 +19,7 @@ export const noteService = {
   // GET /api/notes/:id
   getById: async (id: string): Promise<Note> => {
     const response = await api.get(`/notes/${id}`);
-    return response.data;
+    return response.data.note ?? response.data;
   },
 
   // GET /api/notes/tags
@@ -31,13 +31,13 @@ export const noteService = {
   // POST /api/notes
   create: async (data: CreateNoteInput): Promise<Note> => {
     const response = await api.post("/notes", data);
-    return response.data;
+    return response.data.note ?? response.data;
   },
 
   // PATCH /api/notes/:id
   update: async (id: string, data: UpdateNoteInput): Promise<Note> => {
     const response = await api.patch(`/notes/${id}`, data);
-    return response.data;
+    return response.data.note ?? response.data;
   },
 
   // DELETE /api/notes/:id

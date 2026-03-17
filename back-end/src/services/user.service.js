@@ -71,6 +71,15 @@ export const getMyProfile = async (userId) => {
           lastActivityDate: true,
         },
       },
+      notificationPrefs: {
+        select: {
+          emailRevisionReminders: true,
+          emailStreakAlerts: true,
+          reminderTimeHour: true,
+          reminderTimeMinute: true,
+          reminderTimezone: true,
+        },
+      },
     },
   });
 };
@@ -156,6 +165,49 @@ export const updateMyProfile = async (userId, data) => {
       role: true,
       createdAt: true,
       updatedAt: true,
+    },
+  });
+};
+
+/**
+ * Update current user's notification preferences
+ */
+export const updateMyNotificationPreferences = async (userId, data) => {
+  const updateData = {};
+
+  if (data.emailRevisionReminders !== undefined) {
+    updateData.emailRevisionReminders = data.emailRevisionReminders;
+  }
+  if (data.emailStreakAlerts !== undefined) {
+    updateData.emailStreakAlerts = data.emailStreakAlerts;
+  }
+  if (data.reminderTimezone !== undefined) {
+    updateData.reminderTimezone = data.reminderTimezone;
+  }
+  if (data.reminderTimeHour !== undefined) {
+    updateData.reminderTimeHour = data.reminderTimeHour;
+  }
+  if (data.reminderTimeMinute !== undefined) {
+    updateData.reminderTimeMinute = data.reminderTimeMinute;
+  }
+
+  return prisma.notificationPreference.upsert({
+    where: { userId },
+    update: updateData,
+    create: {
+      userId,
+      emailRevisionReminders: data.emailRevisionReminders ?? true,
+      emailStreakAlerts: data.emailStreakAlerts ?? true,
+      reminderTimeHour: data.reminderTimeHour ?? 9,
+      reminderTimeMinute: data.reminderTimeMinute ?? 0,
+      reminderTimezone: data.reminderTimezone ?? "UTC",
+    },
+    select: {
+      emailRevisionReminders: true,
+      emailStreakAlerts: true,
+      reminderTimeHour: true,
+      reminderTimeMinute: true,
+      reminderTimezone: true,
     },
   });
 };

@@ -88,6 +88,7 @@ export const getNotes = async (userId, query) => {
       select: {
         id: true,
         title: true,
+        contentText: true,
         tags: true,
         mastery: true,
         status: true,

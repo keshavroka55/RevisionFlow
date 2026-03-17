@@ -5,8 +5,13 @@ export interface SubmitAnswer {
   selectedOption: string;
 }
 
-export const generateMockTestAPI = (noteId: string) =>
-  api.post(`/mocktests/generate/${noteId}`);
+export interface GenerateMockTestOptions {
+  questionCount?: number;
+  difficulty?: "EASY" | "MEDIUM" | "HARD" | "MIXED";
+}
+
+export const generateMockTestAPI = (noteId: string, options?: GenerateMockTestOptions) =>
+  api.post(`/mocktests/generate/${noteId}`, options ?? {});
 
 export const getMockTestsAPI = (noteId: string) =>
   api.get(`/mocktests/${noteId}`);
