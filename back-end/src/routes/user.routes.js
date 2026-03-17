@@ -7,6 +7,7 @@ const router = express.Router();
 
 router.get("/me", authenticate, UserController.getMyProfile);
 router.put("/me", authenticate, UserController.updateMyProfile);
+router.patch("/me/notifications", authenticate, UserController.updateMyNotificationPreferences);
 
 router.get("/:id", UserController.getUserById);
 

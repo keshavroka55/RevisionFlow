@@ -33,10 +33,35 @@ export const useDashboardStore = create<DashboardState>((set, get) => ({
 
   fetchTodayRevisions: async () => {
     try {
-      const res = await getTodayRevisionsAPI();
-      set({ todayRevisions: res.data });
+      const today = await getTodayRevisionsAPI();
+      const normalize = (items: any[]): TodayRevision[] =>
+        items.map((r) => ({
+          id: r.id,
+          stage: r.stage,
+          status: r.status,
+          scheduledAt: r.scheduledAt,
+          sessionSlot: r.sessionSlot,
+          sessionOrder: r.sessionOrder,
+          note: {
+            id: r.note?.id ?? "",
+            title: r.note?.title ?? "Untitled",
+            mastery: r.note?.mastery ?? "NEW",
+            folder: {
+              name: r.note?.folder?.name ?? "Unknown",
+              color: r.note?.folder?.color ?? "#4F46E5",
+            },
+          },
+        }));
+
+      set({
+        todayRevisions: {
+          total: today.total ?? 0,
+          session1: { schedules: normalize(today.session1?.schedules ?? []) },
+          session2: { schedules: normalize(today.session2?.schedules ?? []) },
+        },
+      });
     } catch (err: any) {
-      set({ error: err.message });
+      set({ error: err.response?.data?.message || err.message });
     }
   },
 

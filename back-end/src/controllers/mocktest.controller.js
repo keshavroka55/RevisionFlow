@@ -3,7 +3,7 @@ import * as mocktestService from "../services/mocktest.service.js";
 
 export const generateMockTest = async (req, res) => {
   try {
-    const test = await mocktestService.generateMockTest(req.params.noteId, req.user.id);
+    const test = await mocktestService.generateMockTest(req.params.noteId, req.user.id, req.body);
     return sendSuccess(res, { test }, "Mock test generated", 201);
   } catch (err) {
     res.status(err.statusCode || 500).json({ success: false, message: err.message });

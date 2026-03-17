@@ -2,31 +2,41 @@ import { useState, useEffect } from "react";
 import {
   Plus,
   Folder as FolderIcon,
-  MoreVertical,
   Edit,
   Trash2,
   FileText,
   Clock,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useFolderStore, useFolderLoading } from "../store/folder.store";
 import { useAuthStore } from "../store/auth.store";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 export default function Folders() {
-  const { folders, error, fetchFolders, createFolder, deleteFolder, clearError } =
+  const navigate = useNavigate();
+
+  const { folders, error, fetchFolders, createFolder, updateFolder, deleteFolder, clearError } =
     useFolderStore();
   const { user } = useAuthStore();
 
   const isFetching = useFolderLoading("folder.fetchAll");
   const isCreating = useFolderLoading("folder.create");
   const isDeleting = useFolderLoading("folder.delete");
+  const isUpdating = useFolderLoading("folder.update");
+
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [newFolderColor, setNewFolderColor] = useState("#4F46E5");
+  // folder edit and save one. 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState("#4F46E5");
+  const [folderToDelete, setFolderToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // Check premium — replace with real user.role or subscription check
   const isPremium = user?.role === "ADMIN";
-  const canCreateFolder = isPremium || folders.length < 2;
+  const canCreateFolder = isPremium || folders.length < 10;
 
   // Fetch folders when page loads
   useEffect(() => {
@@ -45,9 +55,21 @@ export default function Folders() {
     }
   };
 
+  const startEdit = (id: string, name: string, color: string) => {
+    setEditingId(id);
+    setEditName(name);
+    setEditColor(color);
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editName.trim()) return;
+    await updateFolder(editingId, { name: editName.trim(), color: editColor });
+    setEditingId(null);
+  };
+
   const handleDeleteFolder = async (id: string) => {
-    if (!confirm("Delete this folder? Notes inside will also be deleted.")) return;
     await deleteFolder(id);
+    setFolderToDelete(null);
   };
 
   if (isFetching) {
@@ -60,6 +82,23 @@ export default function Folders() {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 pb-20 lg:pb-8">
+      <ConfirmDialog
+        open={Boolean(folderToDelete)}
+        title="Delete folder?"
+        description={
+          folderToDelete
+            ? `This will delete "${folderToDelete.name}" and all notes inside it. This action cannot be undone.`
+            : "This action cannot be undone."
+        }
+        confirmText="Delete Folder"
+        isLoading={isDeleting}
+        onClose={() => setFolderToDelete(null)}
+        onConfirm={() => {
+          if (!folderToDelete) return;
+          handleDeleteFolder(folderToDelete.id);
+        }}
+      />
+
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-3xl font-bold text-foreground">Folders</h1>
@@ -93,9 +132,12 @@ export default function Folders() {
             <div className="flex-1">
               <h3 className="font-semibold text-foreground mb-1">Free Plan Limit</h3>
               <p className="text-sm text-muted-foreground mb-3">
-                You can create only 2 folders in the free plan. Upgrade to Premium for unlimited folders.
+                You can create only 10 folders in the free plan. Upgrade to Premium for unlimited folders.
               </p>
-              <button className="bg-primary text-white px-4 py-2 rounded-lg text-sm hover:bg-primary/90 transition-colors">
+              <button
+                onClick={() => navigate("/dashboard/upgrade")}
+                className="bg-primary text-white px-4 py-2 rounded-lg text-sm hover:bg-primary/90 transition-colors"
+              >
                 Upgrade to Premium
               </button>
             </div>
@@ -173,14 +215,37 @@ export default function Folders() {
                     style={{ color: folder.color }}
                   />
                 </div>
-                <button className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-muted rounded-lg">
-                  <MoreVertical className="w-5 h-5 text-muted-foreground" />
-                </button>
               </div>
 
-              <h3 className="text-xl font-semibold text-foreground mb-2">
-                {folder.name}
-              </h3>
+              {editingId === folder.id ? (
+                <div className="mb-3 space-y-2">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full px-3 py-2 bg-input-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="Folder name..."
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveEdit();
+                      if (e.key === "Escape") setEditingId(null);
+                    }}
+                  />
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-muted-foreground">Color</label>
+                    <input
+                      type="color"
+                      value={editColor}
+                      onChange={(e) => setEditColor(e.target.value)}
+                      className="w-10 h-10 rounded cursor-pointer border border-border"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <h3 className="text-xl font-semibold text-foreground mb-2">
+                  {folder.name}
+                </h3>
+              )}
 
               {folder.description && (
                 <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
@@ -200,21 +265,53 @@ export default function Folders() {
               </div>
 
               <div className="mt-4 pt-4 border-t border-border flex gap-2">
-                <button className="flex-1 bg-primary/10 text-primary px-3 py-2 rounded-lg hover:bg-primary/20 transition-colors text-sm flex items-center justify-center gap-2">
-                  <Edit className="w-4 h-4" />
-                  Edit
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteFolder(folder.id);
-                  }}
-                  disabled={isDeleting || folder.isDefault}
-                  className="px-3 py-2 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={folder.isDefault ? "Cannot delete default folder" : "Delete folder"}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {editingId === folder.id ? (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        saveEdit();
+                      }}
+                      disabled={isUpdating || !editName.trim()}
+                      className="flex-1 bg-primary text-white px-3 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isUpdating ? "Saving..." : "Save"}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingId(null);
+                      }}
+                      className="px-3 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-colors text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEdit(folder.id, folder.name, folder.color);
+                      }}
+                      className="flex-1 bg-primary/10 text-primary px-3 py-2 rounded-lg hover:bg-primary/20 transition-colors text-sm flex items-center justify-center gap-2"
+                    >
+                      <Edit className="w-4 h-4" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFolderToDelete({ id: folder.id, name: folder.name });
+                      }}
+                      disabled={isDeleting || folder.isDefault}
+                      className="px-3 py-2 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={folder.isDefault ? "Cannot delete default folder" : "Delete folder"}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}

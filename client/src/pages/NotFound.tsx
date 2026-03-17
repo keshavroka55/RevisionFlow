@@ -1,4 +1,4 @@
-import { Link } from 'react-router';
+import { Link } from 'react-router-dom';
 import { Home, Search } from 'lucide-react';
 
 export default function NotFound() {

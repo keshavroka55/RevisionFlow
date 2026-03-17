@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import { userService } from "../services/user.service";
-import { UserProfile, UpdateProfileInput, UpdatedProfile } from "../types/user.types";
+import {
+  UserProfile,
+  UpdateProfileInput,
+  UpdatedProfile,
+  UpdateNotificationPreferencesInput,
+  UserNotificationPreferences,
+} from "../types/user.types";
 
 interface LoadingState {
   [key: string]: boolean;
@@ -15,6 +21,9 @@ interface UserStore {
   // ─── Actions ─────────────────────────────────
   fetchProfile: () => Promise<void>;
   updateProfile: (data: UpdateProfileInput) => Promise<UpdatedProfile>;
+  updateNotificationPreferences: (
+    data: UpdateNotificationPreferencesInput
+  ) => Promise<UserNotificationPreferences>;
   clearError: () => void;
   runWithLoading: <T>(key: string, fn: () => Promise<T>) => Promise<T>;
 }
@@ -83,6 +92,27 @@ export const useUserStore = create<UserStore>((set, get) => ({
       });
     } catch (err: any) {
       set({ error: err.response?.data?.message || "Failed to update profile" });
+      throw err;
+    }
+  },
+
+  updateNotificationPreferences: async (data) => {
+    set({ error: null });
+    try {
+      return await get().runWithLoading("user.updateNotificationPreferences", async () => {
+        const prefs = await userService.updateMyNotificationPreferences(data);
+        set((state) => ({
+          profile: state.profile
+            ? {
+                ...state.profile,
+                notificationPrefs: prefs,
+              }
+            : state.profile,
+        }));
+        return prefs;
+      });
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || "Failed to update notification preferences" });
       throw err;
     }
   },

@@ -1,10 +1,11 @@
 import { Outlet, Link, useLocation } from 'react-router';
-import { Brain, LayoutDashboard, Folder, FileText, Calendar, Trophy, Settings, Crown, Menu, X, Home, BookOpen, User } from 'lucide-react';
+import { Brain, LayoutDashboard, Folder, FileText, Calendar, Trophy, Settings, Crown, Menu, X, Home, BookOpen, User, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useState } from 'react';
 
 export default function DashboardLayout() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -26,14 +27,40 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background lg:flex">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col border-r border-border bg-white">
+      <aside
+        className={`hidden lg:flex lg:shrink-0 lg:flex-col lg:sticky lg:top-0 lg:h-screen border-r border-border bg-white transition-[width] duration-200 ${
+          sidebarCollapsed ? 'lg:w-20' : 'lg:w-64 xl:w-72'
+        }`}
+      >
         <div className="flex flex-col flex-1 min-h-0">
-          <div className="flex items-center gap-2 h-16 px-6 border-b border-border">
+          <div className="flex items-center justify-between gap-2 h-16 px-4 border-b border-border">
+            <div className={`flex items-center ${sidebarCollapsed ? 'justify-center w-full' : 'gap-2'}`}>
             <Brain className="w-8 h-8 text-primary" />
-            <span className="text-xl font-semibold text-foreground">Revision Flow</span>
+              {!sidebarCollapsed && <span className="text-xl font-semibold text-foreground">Revision Flow</span>}
+            </div>
+            {!sidebarCollapsed && (
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                className="p-2 rounded-lg hover:bg-muted transition-colors"
+                aria-label="Collapse sidebar"
+              >
+                <PanelLeftClose className="w-5 h-5 text-muted-foreground" />
+              </button>
+            )}
           </div>
+          {sidebarCollapsed && (
+            <div className="px-3 pt-3">
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="w-full p-2 rounded-lg hover:bg-muted transition-colors flex items-center justify-center"
+                aria-label="Expand sidebar"
+              >
+                <PanelLeftOpen className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
+          )}
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -42,14 +69,15 @@ export default function DashboardLayout() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg transition-colors ${
                     active
                       ? 'bg-primary text-white'
                       : 'text-foreground hover:bg-muted'
                   }`}
+                  title={sidebarCollapsed ? item.label : undefined}
                 >
                   <Icon className="w-5 h-5" />
-                  <span className="text-sm">{item.label}</span>
+                  {!sidebarCollapsed && <span className="text-sm">{item.label}</span>}
                 </Link>
               );
             })}
@@ -57,10 +85,13 @@ export default function DashboardLayout() {
           <div className="p-4 border-t border-border">
             <Link
               to="/dashboard/upgrade"
-              className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-primary to-secondary text-white px-4 py-3 rounded-lg hover:opacity-90 transition-opacity"
+              className={`flex items-center justify-center w-full bg-linear-to-r from-primary to-secondary text-white rounded-lg hover:opacity-90 transition-opacity ${
+                sidebarCollapsed ? 'px-3 py-3' : 'gap-2 px-4 py-3'
+              }`}
+              title={sidebarCollapsed ? 'Upgrade to Premium' : undefined}
             >
               <Crown className="w-5 h-5" />
-              <span className="text-sm">Upgrade to Premium</span>
+              {!sidebarCollapsed && <span className="text-sm">Upgrade to Premium</span>}
             </Link>
           </div>
         </div>
@@ -75,6 +106,7 @@ export default function DashboardLayout() {
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-2 hover:bg-muted rounded-lg transition-colors"
+          aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
         >
           {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
@@ -108,9 +140,9 @@ export default function DashboardLayout() {
             </nav>
             <div className="p-4">
               <Link
-                to="/dashboard/payment"
+                to="/dashboard/upgrade"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-primary to-secondary text-white px-4 py-3 rounded-lg hover:opacity-90 transition-opacity"
+                className="flex items-center justify-center gap-2 w-full bg-linear-to-r from-primary to-secondary text-white px-4 py-3 rounded-lg hover:opacity-90 transition-opacity"
               >
                 <Crown className="w-5 h-5" />
                 <span className="text-sm">Upgrade to Premium</span>
@@ -121,8 +153,8 @@ export default function DashboardLayout() {
       )}
 
       {/* Main Content */}
-      <div className="lg:pl-64 pt-16 lg:pt-0">
-        <main className="min-h-screen">
+      <div className="flex-1 min-w-0 pt-16 lg:pt-0 pb-16 lg:pb-0">
+        <main className="min-h-screen lg:min-h-0 lg:h-screen overflow-y-auto">
           <Outlet />
         </main>
       </div>

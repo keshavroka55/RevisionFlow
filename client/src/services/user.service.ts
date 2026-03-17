@@ -1,5 +1,11 @@
 import api from "../api/axiosInstance";
-import { UserProfile, UpdateProfileInput, UpdatedProfile } from "../types/user.types";
+import {
+  UserProfile,
+  UpdateProfileInput,
+  UpdatedProfile,
+  UpdateNotificationPreferencesInput,
+  UserNotificationPreferences,
+} from "../types/user.types";
 
 export const userService = {
 
@@ -12,6 +18,13 @@ export const userService = {
   // PUT /api/users/me — update name, avatarUrl, timezone
   updateMyProfile: async (data: UpdateProfileInput): Promise<UpdatedProfile> => {
     const response = await api.put("/users/me", data);
+    return response.data;
+  },
+
+  updateMyNotificationPreferences: async (
+    data: UpdateNotificationPreferencesInput
+  ): Promise<UserNotificationPreferences> => {
+    const response = await api.patch("/users/me/notifications", data);
     return response.data;
   },
 };

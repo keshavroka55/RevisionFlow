@@ -24,6 +24,7 @@ export interface CreateNoteInput {
   folderId: string;
   title: string;
   content: Record<string, any>;
+  contentText?: string;
   tags?: string[];
   isEmailEnabled?: boolean;
 }
@@ -32,6 +33,7 @@ export interface CreateNoteInput {
 export interface UpdateNoteInput {
   title?: string;
   content?: Record<string, any>;
+  contentText?: string;
   tags?: string[];
   folderId?: string;
   isEmailEnabled?: boolean;

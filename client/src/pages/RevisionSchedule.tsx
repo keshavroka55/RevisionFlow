@@ -1,28 +1,65 @@
-import { Calendar, Clock, CheckCircle, AlertCircle } from 'lucide-react';
-
-interface ScheduleItem {
-  id: number;
-  title: string;
-  folder: string;
-  date: string;
-  status: 'completed' | 'pending' | 'upcoming';
-  dayNumber: number;
-}
-
-const scheduleItems: ScheduleItem[] = [
-  { id: 1, title: 'Quantum Mechanics - Wave Functions', folder: 'Physics', date: 'Today, 9:00 AM', status: 'pending', dayNumber: 3 },
-  { id: 2, title: 'Binary Search Trees', folder: 'Computer Science', date: 'Today, 2:00 PM', status: 'pending', dayNumber: 7 },
-  { id: 3, title: 'Spanish Verb Conjugations', folder: 'Languages', date: 'Yesterday', status: 'completed', dayNumber: 14 },
-  { id: 4, title: 'Thermodynamics Laws', folder: 'Physics', date: 'Tomorrow, 10:00 AM', status: 'upcoming', dayNumber: 3 },
-  { id: 5, title: 'Sorting Algorithms', folder: 'Computer Science', date: 'Mar 12', status: 'upcoming', dayNumber: 7 },
-  { id: 6, title: 'French Grammar', folder: 'Languages', date: 'Mar 15', status: 'upcoming', dayNumber: 14 },
-  { id: 7, title: 'Electromagnetism', folder: 'Physics', date: 'Mar 20', status: 'upcoming', dayNumber: 28 },
-];
+import { useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { Calendar, Clock, CheckCircle, AlertCircle, Loader } from "lucide-react";
+import { useRevisionLoading, useRevisionStore } from "../store/revision.store";
 
 export default function RevisionSchedule() {
-  const pending = scheduleItems.filter(item => item.status === 'pending');
-  const upcoming = scheduleItems.filter(item => item.status === 'upcoming');
-  const completed = scheduleItems.filter(item => item.status === 'completed');
+  const navigate = useNavigate();
+
+  const {
+    revisions,
+    todayRevisions,
+    upcomingRevisions,
+    error,
+    fetchRevisions,
+    fetchTodayRevisions,
+    fetchUpcomingRevisions,
+  } = useRevisionStore();
+
+  const isLoadingToday = useRevisionLoading("revision.fetchToday");
+  const isLoadingUpcoming = useRevisionLoading("revision.fetchUpcoming");
+  const isLoadingCompleted = useRevisionLoading("revision.fetchAll");
+
+  useEffect(() => {
+    fetchTodayRevisions();
+    fetchUpcomingRevisions();
+    fetchRevisions({ status: "COMPLETED" });
+  }, []);
+
+  const dayNumberFromStage = (stage?: string) => {
+    const map: Record<string, number> = {
+      DAY_3: 3,
+      DAY_7: 7,
+      DAY_14: 14,
+      DAY_28: 28,
+    };
+    return map[stage ?? ""] ?? 0;
+  };
+
+  const formatDate = (iso?: string) => {
+    if (!iso) return "-";
+    return new Date(iso).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const pending = useMemo(
+    () => todayRevisions.filter((item) => item.status === "PENDING" || item.status === "OVERDUE"),
+    [todayRevisions]
+  );
+
+  const upcoming = useMemo(
+    () => upcomingRevisions.filter((item) => item.status === "PENDING"),
+    [upcomingRevisions]
+  );
+
+  const completed = useMemo(
+    () => revisions.filter((item) => item.status === "COMPLETED").slice(0, 10),
+    [revisions]
+  );
 
   return (
     <div className="p-4 md:p-6 lg:p-8 pb-20 lg:pb-8">
@@ -30,6 +67,12 @@ export default function RevisionSchedule() {
         <h1 className="text-3xl font-bold text-foreground mb-2">Revision Schedule</h1>
         <p className="text-muted-foreground">Your learning timeline based on spaced repetition</p>
       </div>
+
+      {error && (
+        <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -110,19 +153,22 @@ export default function RevisionSchedule() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-foreground mb-2">{item.title}</h3>
+                      <h3 className="font-semibold text-foreground mb-2">{item.note?.title}</h3>
                       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                         <span className="bg-warning/10 text-warning px-2 py-1 rounded">
-                          Day {item.dayNumber} Review
+                          Day {dayNumberFromStage(item.stage)} Review
                         </span>
-                        <span>{item.folder}</span>
+                        <span>{item.note?.folder?.name ?? "Unknown"}</span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-4 h-4" />
-                          {item.date}
+                          {formatDate(item.scheduledAt)}
                         </span>
                       </div>
                     </div>
-                    <button className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors whitespace-nowrap">
+                    <button
+                      onClick={() => navigate(`/dashboard/revision?noteId=${item.note?.id}`)}
+                      className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors whitespace-nowrap"
+                    >
                       Start Now
                     </button>
                   </div>
@@ -149,15 +195,15 @@ export default function RevisionSchedule() {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-foreground mb-2">{item.title}</h3>
+                      <h3 className="font-semibold text-foreground mb-2">{item.note?.title}</h3>
                       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                         <span className="bg-primary/10 text-primary px-2 py-1 rounded">
-                          Day {item.dayNumber} Review
+                          Day {dayNumberFromStage(item.stage)} Review
                         </span>
-                        <span>{item.folder}</span>
+                        <span>{item.note?.folder?.name ?? "Unknown"}</span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-4 h-4" />
-                          {item.date}
+                          {formatDate(item.scheduledAt)}
                         </span>
                       </div>
                     </div>
@@ -187,16 +233,16 @@ export default function RevisionSchedule() {
                     <div className="flex-1">
                       <h3 className="font-semibold text-foreground mb-2 flex items-center gap-2">
                         <CheckCircle className="w-5 h-5 text-accent" />
-                        {item.title}
+                        {item.note?.title}
                       </h3>
                       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                         <span className="bg-accent/10 text-accent px-2 py-1 rounded">
-                          Day {item.dayNumber} Review
+                          Day {dayNumberFromStage(item.stage)} Review
                         </span>
-                        <span>{item.folder}</span>
+                        <span>{item.note?.folder?.name ?? "Unknown"}</span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-4 h-4" />
-                          {item.date}
+                          {formatDate(item.completedAt || item.scheduledAt)}
                         </span>
                       </div>
                     </div>
@@ -204,6 +250,18 @@ export default function RevisionSchedule() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {(isLoadingToday || isLoadingUpcoming || isLoadingCompleted) && (
+          <div className="flex items-center justify-center py-8">
+            <Loader className="w-6 h-6 text-primary animate-spin" />
+          </div>
+        )}
+
+        {!isLoadingToday && !isLoadingUpcoming && !isLoadingCompleted && pending.length === 0 && upcoming.length === 0 && completed.length === 0 && (
+          <div className="bg-white rounded-xl border border-border p-8 text-center">
+            <p className="text-muted-foreground">No revision schedules found yet.</p>
           </div>
         )}
       </div>

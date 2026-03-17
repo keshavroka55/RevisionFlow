@@ -145,16 +145,17 @@ export const forgotPassword = async (req, res) => {
 
 export const resetPasswordController = async (req, res) => {
   try {
-    const { token, password } = req.body;
+    const { token, newPassword, password } = req.body;
+    const passwordToSet = newPassword || password;
 
-    if (!token || !password) {
+    if (!token || !passwordToSet) {
       return res.status(400).json({
         success: false,
         message: "Token and password are required"
       });
     }
 
-    const result = await resetPassword(token, password);
+    const result = await resetPassword(token, passwordToSet);
 
     res.status(200).json({
       success: true,

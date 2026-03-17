@@ -14,6 +14,7 @@ type FlashcardState = {
 
   fetchFlashcards: (noteId: string) => Promise<void>;
   generateFlashcards: (noteId: string) => Promise<void>;
+  clearFlashcards: () => void;
   clearError: () => void;
 };
 
@@ -30,7 +31,7 @@ export const useFlashcardStore = create<FlashcardState>((set) => ({
       const res = await getFlashcardsAPI(noteId);
       set({ flashcards: res.data.flashcards, isLoading: false });
     } catch (err: any) {
-      set({ error: err.message, isLoading: false });
+      set({ error: err.response?.data?.message || err.message, isLoading: false });
     }
   },
 
@@ -40,9 +41,11 @@ export const useFlashcardStore = create<FlashcardState>((set) => ({
       const res = await generateFlashcardsAPI(noteId);
       set({ flashcards: res.data.flashcards, isGenerating: false });
     } catch (err: any) {
-      set({ error: err.message, isGenerating: false });
+      set({ error: err.response?.data?.message || err.message, isGenerating: false });
     }
   },
+
+  clearFlashcards: () => set({ flashcards: [], currentNoteId: null }),
 
   clearError: () => set({ error: null }),
 }));

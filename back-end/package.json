@@ -30,6 +30,7 @@
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.20.0",
     "prisma": "^7.4.0",
+    "react-quill-new": "^3.8.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {

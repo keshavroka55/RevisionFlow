@@ -28,6 +28,14 @@ export interface UserStreak {
   lastActivityDate: string | null;
 }
 
+export interface UserNotificationPreferences {
+  emailRevisionReminders: boolean;
+  emailStreakAlerts: boolean;
+  reminderTimeHour: number;
+  reminderTimeMinute: number;
+  reminderTimezone: string;
+}
+
 export interface ProfileFolder {
   id: string;
   name: string;
@@ -67,6 +75,7 @@ export interface UserProfile {
   subscription: UserSubscription | null;
   progressStats: UserProgressStats | null;
   streaks: UserStreak | null;
+  notificationPrefs: UserNotificationPreferences | null;
   folders: ProfileFolder[];
   notes: ProfileNote[];
 }
@@ -90,6 +99,14 @@ export interface UpdatedProfile {
   role: UserRole;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface UpdateNotificationPreferencesInput {
+  emailRevisionReminders?: boolean;
+  emailStreakAlerts?: boolean;
+  reminderTimeHour?: number;
+  reminderTimeMinute?: number;
+  reminderTimezone?: string;
 }
 
 // ─── API response wrappers ────────────────────────────────────────────────────

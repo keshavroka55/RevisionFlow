@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus,
   FileText,
@@ -7,363 +7,819 @@ import {
   Folder as FolderIcon,
   Trash2,
   Tag,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  List,
+  ListOrdered,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Highlighter,
+  Type,
+  Minus,
+  ChevronDown,
+  Pencil,
+  BookOpen,
+  Sparkles,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import ReactQuill from "react-quill-new";
+import "react-quill-new/dist/quill.snow.css";
 import { useNoteStore, useNoteLoading } from "../store/note.store";
 import { useFolderStore } from "../store/folder.store";
 import { MasteryLevel } from "../types/note.types";
+import ConfirmDialog from "../components/ConfirmDialog";
 
-// Badge color per mastery level — matches your Prisma enum
+/* ─── Mastery badge styles ─────────────────────────────────────────────── */
 const masteryColors: Record<MasteryLevel, string> = {
-  NEW: "bg-gray-100 text-gray-600",
-  LEARNING: "bg-blue-100 text-blue-600",
-  REVIEWING: "bg-yellow-100 text-yellow-600",
-  MASTERED: "bg-green-100 text-green-600",
+  NEW: "bg-slate-100 text-slate-500 border border-slate-200",
+  LEARNING: "bg-blue-50 text-blue-600 border border-blue-200",
+  REVIEWING: "bg-amber-50 text-amber-600 border border-amber-200",
+  MASTERED: "bg-emerald-50 text-emerald-600 border border-emerald-200",
 };
 
+const masteryDot: Record<MasteryLevel, string> = {
+  NEW: "bg-slate-400",
+  LEARNING: "bg-blue-500",
+  REVIEWING: "bg-amber-500",
+  MASTERED: "bg-emerald-500",
+};
+
+/* ─── Quill config ──────────────────────────────────────────────────────── */
+const quillModules = {
+  toolbar: {
+    container: "#quill-toolbar",
+  },
+};
+
+const quillFormats = [
+  "header",
+  "bold", "italic", "underline", "strike",
+  "color", "background",
+  "list",
+  "align",
+  "indent",
+  "blockquote",
+  "code-block",
+  "link",
+];
+
+/* ─── Highlight colours ────────────────────────────────────────────────── */
+const highlights = [
+  { label: "Yellow", bg: "#FEF08A", text: "#713F12" },
+  { label: "Green",  bg: "#BBF7D0", text: "#14532D" },
+  { label: "Blue",   bg: "#BAE6FD", text: "#0C4A6E" },
+  { label: "Pink",   bg: "#FBCFE8", text: "#831843" },
+  { label: "Orange", bg: "#FED7AA", text: "#7C2D12" },
+  { label: "Purple", bg: "#E9D5FF", text: "#581C87" },
+];
+
+/* ─── Custom toolbar component ─────────────────────────────────────────── */
+function EditorToolbar({ quillRef }: { quillRef: React.MutableRefObject<any> }) {
+  const [showHighlights, setShowHighlights] = useState(false);
+  const [showHeadings, setShowHeadings] = useState(false);
+  const [activeFmts, setActiveFmts] = useState<Record<string, any>>({});
+
+  // Track active formats
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const editor = quillRef.current?.getEditor?.();
+      if (editor) {
+        const range = editor.getSelection();
+        if (range) setActiveFmts(editor.getFormat(range));
+      }
+    }, 200);
+    return () => clearInterval(interval);
+  }, [quillRef]);
+
+  const applyFormat = (format: string, value: any) => {
+    const editor = quillRef.current?.getEditor?.();
+    if (!editor) return;
+    editor.focus();
+    const range = editor.getSelection(true);
+    if (range) editor.formatText(range.index, range.length, format, value);
+  };
+
+  const applyBlockFormat = (format: string, value: any) => {
+    const editor = quillRef.current?.getEditor?.();
+    if (!editor) return;
+    editor.focus();
+    const range = editor.getSelection(true);
+    if (range) editor.formatLine(range.index, range.length, format, value);
+  };
+
+  const btn = (
+    active: boolean,
+    onClick: () => void,
+    children: React.ReactNode,
+    title: string
+  ) => (
+    <button
+      type="button"
+      title={title}
+      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+      className={`
+        relative p-1.5 rounded-md text-sm transition-all duration-150 select-none
+        ${active
+          ? "bg-indigo-100 text-indigo-700 shadow-inner"
+          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}
+      `}
+    >
+      {children}
+    </button>
+  );
+
+  const divider = () => (
+    <div className="w-px h-5 bg-slate-200 mx-1 self-center" />
+  );
+
+  return (
+    <div
+      id="quill-toolbar"
+      className="flex flex-wrap items-center gap-0.5 px-3 py-2 border-b border-slate-200 bg-slate-50/80 rounded-t-xl"
+    >
+      {/* Headings dropdown */}
+      <div className="relative">
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); setShowHeadings(s => !s); setShowHighlights(false); }}
+          className="flex items-center gap-1 px-2 py-1.5 rounded-md text-sm text-slate-600 hover:bg-slate-100 transition-all"
+        >
+          <Type className="w-3.5 h-3.5" />
+          <span className="text-xs font-medium min-w-8">
+            {activeFmts.header === 1 ? "H1" : activeFmts.header === 2 ? "H2" : activeFmts.header === 3 ? "H3" : "Text"}
+          </span>
+          <ChevronDown className="w-3 h-3 opacity-60" />
+        </button>
+        {showHeadings && (
+          <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1 min-w-32">
+            {[
+              { label: "Normal", value: false, cls: "text-sm" },
+              { label: "Heading 1", value: 1, cls: "text-xl font-bold" },
+              { label: "Heading 2", value: 2, cls: "text-lg font-semibold" },
+              { label: "Heading 3", value: 3, cls: "text-base font-medium" },
+            ].map((h) => (
+              <button
+                key={String(h.value)}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applyBlockFormat("header", h.value);
+                  setShowHeadings(false);
+                }}
+                className={`w-full text-left px-3 py-1.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors ${h.cls}`}
+              >
+                {h.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {divider()}
+
+      {/* Bold / Italic / Underline / Strike */}
+      {btn(!!activeFmts.bold, () => applyFormat("bold", !activeFmts.bold), <Bold className="w-3.5 h-3.5" />, "Bold (Ctrl+B)")}
+      {btn(!!activeFmts.italic, () => applyFormat("italic", !activeFmts.italic), <Italic className="w-3.5 h-3.5" />, "Italic (Ctrl+I)")}
+      {btn(!!activeFmts.underline, () => applyFormat("underline", !activeFmts.underline), <Underline className="w-3.5 h-3.5" />, "Underline (Ctrl+U)")}
+      {btn(!!activeFmts.strike, () => applyFormat("strike", !activeFmts.strike), <Strikethrough className="w-3.5 h-3.5" />, "Strikethrough")}
+
+      {divider()}
+
+      {/* Highlight picker */}
+      <div className="relative">
+        <button
+          type="button"
+          title="Highlight"
+          onMouseDown={(e) => { e.preventDefault(); setShowHighlights(s => !s); setShowHeadings(false); }}
+          className="flex items-center gap-1 p-1.5 rounded-md text-slate-600 hover:bg-slate-100 transition-all"
+        >
+          <Highlighter className="w-3.5 h-3.5" />
+          <ChevronDown className="w-3 h-3 opacity-60" />
+        </button>
+        {showHighlights && (
+          <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-2">
+            <p className="text-xs text-slate-400 font-medium mb-2 px-1">Highlight Colour</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {highlights.map((h) => (
+                <button
+                  key={h.label}
+                  type="button"
+                  title={h.label}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    applyFormat("background", h.bg);
+                    applyFormat("color", h.text);
+                    setShowHighlights(false);
+                  }}
+                  className="w-8 h-8 rounded-md border border-slate-200 hover:scale-110 transition-transform shadow-sm"
+                  style={{ backgroundColor: h.bg }}
+                />
+              ))}
+              <button
+                type="button"
+                title="Remove highlight"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applyFormat("background", false);
+                  applyFormat("color", false);
+                  setShowHighlights(false);
+                }}
+                className="w-8 h-8 rounded-md border border-dashed border-slate-300 hover:scale-110 transition-transform flex items-center justify-center text-slate-400 text-xs"
+              >
+                <Minus className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {divider()}
+
+      {/* Lists */}
+      {btn(activeFmts.list === "bullet", () => applyBlockFormat("list", activeFmts.list === "bullet" ? false : "bullet"), <List className="w-3.5 h-3.5" />, "Bullet List")}
+      {btn(activeFmts.list === "ordered", () => applyBlockFormat("list", activeFmts.list === "ordered" ? false : "ordered"), <ListOrdered className="w-3.5 h-3.5" />, "Numbered List")}
+
+      {divider()}
+
+      {/* Alignment */}
+      {btn(!activeFmts.align || activeFmts.align === "left", () => applyBlockFormat("align", false), <AlignLeft className="w-3.5 h-3.5" />, "Align Left")}
+      {btn(activeFmts.align === "center", () => applyBlockFormat("align", "center"), <AlignCenter className="w-3.5 h-3.5" />, "Align Center")}
+      {btn(activeFmts.align === "right", () => applyBlockFormat("align", "right"), <AlignRight className="w-3.5 h-3.5" />, "Align Right")}
+
+      {divider()}
+
+      {/* Blockquote */}
+      {btn(!!activeFmts.blockquote, () => applyBlockFormat("blockquote", !activeFmts.blockquote),
+        <span className="text-xs font-bold font-serif px-0.5">"</span>, "Blockquote"
+      )}
+    </div>
+  );
+}
+
+/* ─── Helpers ───────────────────────────────────────────────────────────── */
+const htmlToPlainText = (html: string): string => {
+  if (!html) return "";
+  return html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+═══════════════════════════════════════════════════════════════════════════ */
 export default function Notes() {
+  const navigate = useNavigate();
+  const createQuillRef = useRef<any>(null);
+  const editQuillRef = useRef<any>(null);
+
   const {
-    notes,
-    selectedNote,
-    error,
-    fetchNotes,
-    createNote,
-    deleteNote,
-    setSelectedNote,
-    clearError,
+    notes, selectedNote, error,
+    fetchNotes, createNote, updateNote, deleteNote,
+    setSelectedNote, clearError,
   } = useNoteStore();
 
   const { folders, fetchFolders } = useFolderStore();
 
-  const isFetching = useNoteLoading("note.fetchAll");
-  const isCreating = useNoteLoading("note.create");
-  const isDeleting = useNoteLoading("note.delete");
+  const isFetching  = useNoteLoading("note.fetchAll");
+  const isCreating  = useNoteLoading("note.create");
+  const isUpdating  = useNoteLoading("note.update");
+  const isDeleting  = useNoteLoading("note.delete");
 
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [newNote, setNewNote] = useState({
-    title: "",
-    folderId: "",
-    content: "",  // plain text — convert to TipTap JSON on submit
-    tags: [] as string[],
-  });
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [activeToolbar, setActiveToolbar] = useState<"create" | "edit">("create");
+  const [newNote, setNewNote] = useState({ title: "", folderId: "", content: "", tags: [] as string[], tagsInput: "" });
+  const [editNote, setEditNote] = useState({ title: "", folderId: "", content: "", tagsInput: "" });
+  const [noteToDelete, setNoteToDelete] = useState<{ id: string; title: string } | null>(null);
 
-  // Fetch notes and folders on mount
-  useEffect(() => {
-    fetchNotes();
-    fetchFolders();
-  }, []);
+  /* word / char counter */
+  const wordCount = (html: string) => htmlToPlainText(html).split(/\s+/).filter(Boolean).length;
+  const charCount = (html: string) => htmlToPlainText(html).length;
 
-  // Search — debounced call to backend with q param
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      fetchNotes({ q: searchQuery });
-    }, 400); // wait 400ms after user stops typing
-
-    return () => clearTimeout(timeout);
-  }, [searchQuery]);
-
-  // Set default folderId once folders load
-  useEffect(() => {
-    if (folders.length > 0 && !newNote.folderId) {
-      setNewNote((prev) => ({ ...prev, folderId: folders[0].id }));
+  const extractTextFromContent = (node: any): string => {
+    if (!node) return "";
+    if (typeof node === "string") return node;
+    if (Array.isArray(node)) return node.map(extractTextFromContent).join(" ");
+    if (typeof node === "object") {
+      return [typeof node.text === "string" ? node.text : "", extractTextFromContent(node.content)]
+        .filter(Boolean).join(" ");
     }
+    return "";
+  };
+
+  const getNotePreviewText = (note: any): string => {
+    const plain = (note?.contentText ?? "").trim();
+    if (plain) return plain;
+    return extractTextFromContent(note?.content).replace(/\s+/g, " ").trim() || "No preview available";
+  };
+
+  /* ── data fetch ── */
+  useEffect(() => { fetchNotes(); fetchFolders(); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => fetchNotes({ q: searchQuery }), 400);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+  useEffect(() => {
+    if (folders.length > 0 && !newNote.folderId)
+      setNewNote(p => ({ ...p, folderId: folders[0].id }));
   }, [folders]);
 
+  /* ── handlers ── */
   const handleCreateNote = async () => {
-    if (!newNote.title.trim() || !newNote.content.trim()) return;
-
+    const plain = htmlToPlainText(newNote.content);
+    if (!newNote.title.trim() || !plain) return;
+    const tags = newNote.tagsInput.split(",").map(t => t.trim()).filter(Boolean);
     try {
       await createNote({
         folderId: newNote.folderId,
         title: newNote.title,
-        // Convert plain text to minimal TipTap JSON format
-        content: {
-          type: "doc",
-          content: [
-            {
-              type: "paragraph",
-              content: [{ type: "text", text: newNote.content }],
-            },
-          ],
-        },
-        tags: newNote.tags,
+        content: { type: "rich-text", html: newNote.content },
+        contentText: plain,
+        tags,
       });
-      setNewNote({ title: "", folderId: folders[0]?.id || "", content: "", tags: [] });
+      setNewNote({ title: "", folderId: folders[0]?.id || "", content: "", tags: [], tagsInput: "" });
       setShowCreateForm(false);
-    } catch {
-      // error is already in store
-    }
+    } catch { /* error in store */ }
   };
 
   const handleDeleteNote = async (id: string) => {
-    if (!confirm("Delete this note?")) return;
     await deleteNote(id);
+    setNoteToDelete(null);
   };
 
+  const handleStartEdit = () => {
+    if (!selectedNote) return;
+    setIsEditMode(true);
+    setShowCreateForm(false);
+    setActiveToolbar("edit");
+    setEditNote({
+      title: selectedNote.title || "",
+      folderId: selectedNote.folderId || folders[0]?.id || "",
+      content: selectedNote.content?.html || getNotePreviewText(selectedNote),
+      tagsInput: selectedNote.tags?.join(", ") || "",
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedNote || !editNote.title.trim() || !editNote.content.trim()) return;
+    const tags = editNote.tagsInput.split(",").map(t => t.trim()).filter(Boolean);
+    await updateNote(selectedNote.id, {
+      title: editNote.title.trim(),
+      folderId: editNote.folderId,
+      content: { type: "rich-text", html: editNote.content },
+      contentText: htmlToPlainText(editNote.content),
+      tags,
+    });
+    setIsEditMode(false);
+  };
+
+  /* ─── render ─────────────────────────────────────────────────────────── */
   return (
-    <div className="h-screen flex flex-col lg:flex-row overflow-hidden">
+    <>
+      {/* Quill global overrides */}
+      <style>{`
+        .ql-container { font-family: 'Georgia', serif; font-size: 15px; border: none !important; }
+        .ql-editor { padding: 20px 24px; min-height: 320px; line-height: 1.8; color: #1e293b; }
+        .ql-editor.ql-blank::before { color: #94a3b8; font-style: italic; }
+        .ql-editor h1 { font-size: 1.75rem; font-weight: 700; color: #0f172a; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
+        .ql-editor h2 { font-size: 1.35rem; font-weight: 600; color: #1e293b; margin-bottom: 6px; }
+        .ql-editor h3 { font-size: 1.1rem; font-weight: 600; color: #334155; margin-bottom: 4px; }
+        .ql-editor blockquote { border-left: 4px solid #6366f1; padding-left: 16px; color: #475569; font-style: italic; background: #f8f7ff; border-radius: 0 8px 8px 0; margin: 12px 0; padding: 10px 16px; }
+        .ql-editor ul li, .ql-editor ol li { margin-bottom: 4px; }
+        .ql-editor code { background: #f1f5f9; border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 0.9em; }
+        .ql-toolbar { display: none; }
+      `}</style>
 
-      {/* Left Panel — Notes List */}
-      <div className="w-full lg:w-96 border-b lg:border-b-0 lg:border-r border-border bg-white flex flex-col max-h-[50vh] lg:max-h-none">
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-foreground">Notes</h2>
-            <button
-              onClick={() => setShowCreateForm(true)}
-              className="bg-primary text-white p-2 rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
+      <div className="h-screen flex overflow-hidden bg-slate-50" style={{ fontFamily: "'Inter', sans-serif" }}>
+        <ConfirmDialog
+          open={Boolean(noteToDelete)}
+          title="Delete note?"
+          description={noteToDelete ? `Permanently delete "${noteToDelete.title}"? This cannot be undone.` : ""}
+          confirmText="Delete"
+          isLoading={isDeleting}
+          onClose={() => setNoteToDelete(null)}
+          onConfirm={() => noteToDelete && handleDeleteNote(noteToDelete.id)}
+        />
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-            <input
-              type="text"
-               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search notes..."
-              className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-            />
-          </div>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
-            <p className="text-xs text-red-600">{error}</p>
-            <button onClick={clearError} className="text-red-400">✕</button>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto">
-          {isFetching ? (
-            <div className="p-8 flex justify-center">
-              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        {/* ── LEFT SIDEBAR ─────────────────────────────────────────────── */}
+        <aside className={`
+          shrink-0 flex flex-col bg-white border-r border-slate-200 transition-all duration-300 overflow-hidden
+          ${sidebarCollapsed ? "w-0" : "w-72 xl:w-80"}
+        `}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
+                <BookOpen className="w-3.5 h-3.5 text-white" />
+              </div>
+              <span className="font-semibold text-slate-800 text-sm">My Notes</span>
+              {notes.length > 0 && (
+                <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">{notes.length}</span>
+              )}
             </div>
-          ) : notes.length > 0 ? (
-            notes.map((note) => (
-              <div
-                key={note.id}
-                onClick={() => setSelectedNote(note)}
-                className={`p-4 border-b border-border cursor-pointer hover:bg-background transition-colors ${
-                  selectedNote?.id === note.id
-                    ? "bg-primary/5 border-l-4 border-l-primary"
-                    : ""
-                }`}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { setShowCreateForm(true); setIsEditMode(false); setActiveToolbar("create"); }}
+                className="w-7 h-7 bg-indigo-600 text-white rounded-lg flex items-center justify-center hover:bg-indigo-700 transition-colors"
+                title="New note"
               >
-                <div className="flex items-start justify-between mb-1">
-                  <h3 className="font-semibold text-foreground line-clamp-1 flex-1">
+                <Plus className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                className="w-7 h-7 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="px-3 py-3 border-b border-slate-100">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search notes..."
+                className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="mx-3 mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+              <p className="text-xs text-red-600">{error}</p>
+              <button onClick={clearError} className="text-red-400 hover:text-red-600">✕</button>
+            </div>
+          )}
+
+          {/* Notes list */}
+          <div className="flex-1 overflow-y-auto py-1">
+            {isFetching ? (
+              <div className="p-8 flex justify-center">
+                <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : notes.length > 0 ? notes.map(note => (
+              <button
+                key={note.id}
+                onClick={() => { setSelectedNote(note); setShowCreateForm(false); setIsEditMode(false); }}
+                className={`
+                  w-full text-left px-4 py-3.5 border-b border-slate-100 hover:bg-slate-50 transition-colors relative group
+                  ${selectedNote?.id === note.id ? "bg-indigo-50/70 border-l-2 border-l-indigo-500" : "border-l-2 border-l-transparent"}
+                `}
+              >
+                <div className="flex items-start justify-between mb-1 gap-2">
+                  <h3 className="font-medium text-slate-800 text-sm leading-tight line-clamp-1 flex-1">
                     {note.title}
                   </h3>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ml-2 flex-shrink-0 ${masteryColors[note.mastery]}`}>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${masteryColors[note.mastery]}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${masteryDot[note.mastery]}`} />
                     {note.mastery}
                   </span>
                 </div>
-
-                <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                  {note.contentText || "No preview available"}
+                <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-2">
+                  {getNotePreviewText(note)}
                 </p>
-
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs text-slate-400">
                   <span className="flex items-center gap-1">
                     <FolderIcon className="w-3 h-3" />
-                    {folders.find((f) => f.id === note.folderId)?.name || "Unknown"}
+                    {folders.find(f => f.id === note.folderId)?.name || "—"}
                   </span>
                   {note.tags?.length > 0 && (
                     <span className="flex items-center gap-1">
                       <Tag className="w-3 h-3" />
-                      {note.tags[0]}
-                      {note.tags.length > 1 && ` +${note.tags.length - 1}`}
+                      {note.tags[0]}{note.tags.length > 1 && ` +${note.tags.length - 1}`}
                     </span>
                   )}
                 </div>
+              </button>
+            )) : (
+              <div className="p-8 text-center">
+                <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm text-slate-400">No notes found</p>
               </div>
-            ))
-          ) : (
-            <div className="p-8 text-center">
-              <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">No notes found</p>
+            )}
+          </div>
+        </aside>
+
+        {/* ── MAIN PANEL ───────────────────────────────────────────────── */}
+        <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+
+          {/* Collapsed sidebar button */}
+          {sidebarCollapsed && (
+            <div className="px-4 pt-4 pb-0 flex items-center gap-3">
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="flex items-center gap-2 text-sm text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+              >
+                <PanelLeftOpen className="w-4 h-4" />
+                Show Notes
+              </button>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Right Panel — Note Editor / Viewer */}
-      <div className="flex-1 bg-background overflow-y-auto pb-20 lg:pb-8">
-
-        {/* Create Note Form */}
-        {showCreateForm ? (
-          <div className="p-6 max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold text-foreground mb-6">Create New Note</h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm mb-2 text-foreground">Title</label>
-                <input
-                  type="text"
-                  value={newNote.title}
-                  onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
-                  placeholder="Note title..."
-                  className="w-full px-4 py-3 bg-white border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm mb-2 text-foreground">Folder</label>
-                <select
-                  value={newNote.folderId}
-                  onChange={(e) => setNewNote({ ...newNote, folderId: e.target.value })}
-                  className="w-full px-4 py-3 bg-white border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  {folders.map((folder) => (
-                    <option key={folder.id} value={folder.id}>
-                      {folder.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm mb-2 text-foreground">Content</label>
-                <textarea
-                  value={newNote.content}
-                  onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
-                  placeholder="Write your note content here..."
-                  rows={12}
-                  className="w-full px-4 py-3 bg-white border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                />
-              </div>
-
-              {/* Revision schedule info */}
-              <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
-                <h4 className="font-semibold text-foreground mb-2">📅 Automatic Revision Schedule</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-                  {["Day 3", "Day 7", "Day 14", "Day 28"].map((day, i) => (
-                    <div key={i} className="bg-white rounded-lg p-2 text-center">
-                      <div className="font-semibold text-primary">{day}</div>
-                      <div className="text-xs text-muted-foreground">Review {i + 1}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={handleCreateNote}
-                  disabled={isCreating || !newNote.title.trim() || !newNote.content.trim()}
-                  className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isCreating ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Note"
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowCreateForm(false);
-                    setNewNote({ title: "", folderId: folders[0]?.id || "", content: "", tags: [] });
-                  }}
-                  className="bg-muted text-foreground px-6 py-3 rounded-lg hover:bg-muted/80 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-
-        ) : selectedNote ? (
-          // View Note
-          <div className="p-6 max-w-4xl mx-auto">
-            <div className="mb-6">
-              <div className="flex items-center gap-3 mb-3 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <FolderIcon className="w-4 h-4" />
-                  {folders.find((f) => f.id === selectedNote.folderId)?.name}
-                </span>
-                <span>•</span>
-                <span>Created {new Date(selectedNote.createdAt).toLocaleDateString()}</span>
-                <span>•</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs ${masteryColors[selectedNote.mastery]}`}>
-                  {selectedNote.mastery}
-                </span>
-              </div>
-
-              <h1 className="text-3xl font-bold text-foreground mb-4">
-                {selectedNote.title}
-              </h1>
-
-              {selectedNote.tags?.length > 0 && (
-                <div className="flex gap-2 flex-wrap mb-4">
-                  {selectedNote.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm flex items-center gap-1"
-                    >
-                      <Tag className="w-3 h-3" />
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {selectedNote.lastRevisedAt && (
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="bg-primary/10 text-primary px-3 py-1 rounded-full flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    Last revised: {new Date(selectedNote.lastRevisedAt).toLocaleDateString()}
+          {/* ── CREATE FORM ── */}
+          {showCreateForm ? (
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-4xl mx-auto px-6 py-6">
+                {/* Page header */}
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center">
+                    <Pencil className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900">Create New Note</h2>
+                    <p className="text-xs text-slate-400">Start writing — your revision schedule will be set automatically</p>
                   </div>
                 </div>
-              )}
+
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  {/* Meta fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 border-b border-slate-200">
+                    <div className="p-4 border-r border-slate-200 sm:col-span-1">
+                      <label className="block text-xs font-medium text-slate-500 mb-1.5 uppercase tracking-wide">Title</label>
+                      <input
+                        type="text"
+                        value={newNote.title}
+                        onChange={e => setNewNote({ ...newNote, title: e.target.value })}
+                        placeholder="Note title..."
+                        autoFocus
+                        className="w-full text-base font-semibold text-slate-900 bg-transparent outline-none placeholder:text-slate-300 placeholder:font-normal"
+                      />
+                    </div>
+                    <div className="p-4 border-r border-slate-200">
+                      <label className="block text-xs font-medium text-slate-500 mb-1.5 uppercase tracking-wide">Folder</label>
+                      <select
+                        value={newNote.folderId}
+                        onChange={e => setNewNote({ ...newNote, folderId: e.target.value })}
+                        className="w-full text-sm text-slate-700 bg-transparent outline-none cursor-pointer"
+                      >
+                        {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="p-4">
+                      <label className="block text-xs font-medium text-slate-500 mb-1.5 uppercase tracking-wide">Tags</label>
+                      <input
+                        type="text"
+                        value={newNote.tagsInput}
+                        onChange={e => setNewNote({ ...newNote, tagsInput: e.target.value })}
+                        placeholder="e.g. biology, ch-1"
+                        className="w-full text-sm text-slate-700 bg-transparent outline-none placeholder:text-slate-300"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Toolbar + Editor */}
+                  <EditorToolbar quillRef={createQuillRef} />
+                  <ReactQuill
+                    ref={createQuillRef}
+                    theme="snow"
+                    value={newNote.content}
+                    onChange={v => setNewNote({ ...newNote, content: v })}
+                    modules={quillModules}
+                    formats={quillFormats}
+                    placeholder="Start writing your note here…"
+                  />
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/60">
+                    <div className="flex items-center gap-3 text-xs text-slate-400">
+                      <span>{wordCount(newNote.content)} words</span>
+                      <span>·</span>
+                      <span>{charCount(newNote.content)} chars</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { setShowCreateForm(false); setNewNote({ title: "", folderId: folders[0]?.id || "", content: "", tags: [], tagsInput: "" }); }}
+                        className="px-4 py-2 text-sm text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleCreateNote}
+                        disabled={isCreating || !newNote.title.trim() || !htmlToPlainText(newNote.content)}
+                        className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isCreating ? (
+                          <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving…</>
+                        ) : (
+                          <><Sparkles className="w-3.5 h-3.5" />Save Note</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Revision schedule hint */}
+                <div className="mt-4 bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-start gap-3">
+                  <Calendar className="w-4 h-4 text-indigo-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-indigo-800 mb-1">Spaced Repetition Schedule</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {["Day 3", "Day 7", "Day 14", "Day 28"].map((d, i) => (
+                        <span key={i} className="text-xs bg-white border border-indigo-200 text-indigo-600 px-2.5 py-1 rounded-full">
+                          {d}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-white rounded-lg border border-border p-6 min-h-[300px] whitespace-pre-wrap text-foreground">
-              {selectedNote.contentText || "No content preview available."}
+          ) : selectedNote ? (
+            /* ── VIEW / EDIT NOTE ── */
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-4xl mx-auto px-6 py-6">
+                {isEditMode ? (
+                  /* EDIT MODE */
+                  <>
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center">
+                        <Pencil className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-slate-900">Edit Note</h2>
+                        <p className="text-xs text-slate-400">Changes will update your note immediately</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                      {/* Meta fields */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 border-b border-slate-200">
+                        <div className="p-4 border-r border-slate-200">
+                          <label className="block text-xs font-medium text-slate-500 mb-1.5 uppercase tracking-wide">Title</label>
+                          <input
+                            type="text"
+                            value={editNote.title}
+                            onChange={e => setEditNote({ ...editNote, title: e.target.value })}
+                            className="w-full text-base font-semibold text-slate-900 bg-transparent outline-none"
+                          />
+                        </div>
+                        <div className="p-4 border-r border-slate-200">
+                          <label className="block text-xs font-medium text-slate-500 mb-1.5 uppercase tracking-wide">Folder</label>
+                          <select
+                            value={editNote.folderId}
+                            onChange={e => setEditNote({ ...editNote, folderId: e.target.value })}
+                            className="w-full text-sm text-slate-700 bg-transparent outline-none cursor-pointer"
+                          >
+                            {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="p-4">
+                          <label className="block text-xs font-medium text-slate-500 mb-1.5 uppercase tracking-wide">Tags</label>
+                          <input
+                            type="text"
+                            value={editNote.tagsInput}
+                            onChange={e => setEditNote({ ...editNote, tagsInput: e.target.value })}
+                            placeholder="e.g. biology, ch-1"
+                            className="w-full text-sm text-slate-700 bg-transparent outline-none placeholder:text-slate-300"
+                          />
+                        </div>
+                      </div>
+
+                      <EditorToolbar quillRef={editQuillRef} />
+                      <ReactQuill
+                        ref={editQuillRef}
+                        theme="snow"
+                        value={editNote.content}
+                        onChange={v => setEditNote({ ...editNote, content: v })}
+                        modules={quillModules}
+                        formats={quillFormats}
+                        placeholder="Write your note…"
+                      />
+
+                      <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/60">
+                        <div className="flex items-center gap-3 text-xs text-slate-400">
+                          <span>{wordCount(editNote.content)} words</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setIsEditMode(false)}
+                            className="px-4 py-2 text-sm text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleSaveEdit}
+                            disabled={isUpdating || !editNote.title.trim() || !editNote.content.trim()}
+                            className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {isUpdating ? "Saving…" : "Save Changes"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* VIEW MODE */
+                  <>
+                    {/* Note header */}
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <FolderIcon className="w-3.5 h-3.5" />
+                            {folders.find(f => f.id === selectedNote.folderId)?.name || "—"}
+                          </span>
+                          <span>·</span>
+                          <span>{new Date(selectedNote.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                          <span>·</span>
+                          <span className={`px-2 py-0.5 rounded-full flex items-center gap-1 ${masteryColors[selectedNote.mastery]}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${masteryDot[selectedNote.mastery]}`} />
+                            {selectedNote.mastery}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleStartEdit}
+                            className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => navigate(`/dashboard/revision?noteId=${selectedNote.id}`)}
+                            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            Start Revision
+                          </button>
+                          <button
+                            onClick={() => setNoteToDelete({ id: selectedNote.id, title: selectedNote.title })}
+                            disabled={isDeleting}
+                            className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-500 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <h1 className="text-3xl font-bold text-slate-900 leading-tight mb-3">
+                        {selectedNote.title}
+                      </h1>
+
+                      {selectedNote.tags?.length > 0 && (
+                        <div className="flex gap-2 flex-wrap mb-3">
+                          {selectedNote.tags.map(tag => (
+                            <span key={tag} className="bg-indigo-50 text-indigo-600 border border-indigo-200 px-2.5 py-1 rounded-full text-xs flex items-center gap-1">
+                              <Tag className="w-3 h-3" />
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {selectedNote.lastRevisedAt && (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                          <Calendar className="w-3 h-3" />
+                          Last revised {new Date(selectedNote.lastRevisedAt).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Note content */}
+                    <div
+                      className="bg-white rounded-2xl border border-slate-200 shadow-sm px-8 py-7 min-h-64 prose prose-slate max-w-none"
+                      style={{ fontFamily: "Georgia, serif", lineHeight: 1.8, color: "#1e293b" }}
+                      dangerouslySetInnerHTML={{ __html: selectedNote.content?.html || `<p>${getNotePreviewText(selectedNote)}</p>` }}
+                    />
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="mt-6 flex gap-3">
-              <button className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors">
-                Edit Note
-              </button>
-              <button className="bg-accent text-white px-6 py-3 rounded-lg hover:bg-accent/90 transition-colors">
-                Start Revision
-              </button>
-              <button
-                onClick={() => handleDeleteNote(selectedNote.id)}
-                disabled={isDeleting}
-                className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg hover:bg-destructive/20 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
-                {isDeleting ? "Deleting..." : "Delete"}
-              </button>
+          ) : (
+            /* ── EMPTY STATE ── */
+            <div className="flex-1 flex items-center justify-center p-8">
+              <div className="text-center max-w-sm">
+                <div className="w-20 h-20 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
+                  <FileText className="w-9 h-9 text-indigo-400" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">No note selected</h3>
+                <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+                  Pick a note from the sidebar or create a new one to get started.
+                </p>
+                <button
+                  onClick={() => { setShowCreateForm(true); setIsEditMode(false); }}
+                  className="inline-flex items-center gap-2 px-5 py-3 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create Your First Note
+                </button>
+              </div>
             </div>
-          </div>
-
-        ) : (
-          // Empty state
-          <div className="h-full flex items-center justify-center p-8">
-            <div className="text-center">
-              <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">No note selected</h3>
-              <p className="text-muted-foreground mb-6">
-                Select a note from the list or create a new one
-              </p>
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors inline-flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Create Note
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </main>
       </div>
-    </div>
+    </>
   );
 }

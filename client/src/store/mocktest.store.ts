@@ -4,6 +4,7 @@ import {
   generateMockTestAPI,
   getMockTestByIdAPI,
   submitMockTestAPI,
+  type GenerateMockTestOptions,
 } from "../services/mocktest.service";
 
 type MockTestState = {
@@ -13,7 +14,7 @@ type MockTestState = {
   isSubmitting: boolean;
   error: string | null;
 
-  generateTest: (noteId: string) => Promise<void>;
+  generateTest: (noteId: string, options?: GenerateMockTestOptions) => Promise<void>;
   loadTest: (testId: string) => Promise<void>;
   submitTest: (testId: string, answers: SubmitAnswer[]) => Promise<void>;
   reset: () => void;
@@ -27,13 +28,13 @@ export const useMockTestStore = create<MockTestState>((set) => ({
   isSubmitting: false,
   error: null,
 
-  generateTest: async (noteId) => {
+  generateTest: async (noteId, options) => {
     set({ isGenerating: true, error: null, result: null, currentTest: null });
     try {
-      const res = await generateMockTestAPI(noteId);
+      const res = await generateMockTestAPI(noteId, options);
       set({ currentTest: res.data.test, isGenerating: false });
     } catch (err: any) {
-      set({ error: err.message, isGenerating: false });
+      set({ error: err.response?.data?.message || err.message, isGenerating: false });
     }
   },
 
@@ -43,7 +44,7 @@ export const useMockTestStore = create<MockTestState>((set) => ({
       const res = await getMockTestByIdAPI(testId);
       set({ currentTest: res.data.test, isGenerating: false });
     } catch (err: any) {
-      set({ error: err.message, isGenerating: false });
+      set({ error: err.response?.data?.message || err.message, isGenerating: false });
     }
   },
 
@@ -53,7 +54,7 @@ export const useMockTestStore = create<MockTestState>((set) => ({
       const res = await submitMockTestAPI(testId, answers);
       set({ result: res.data, isSubmitting: false });
     } catch (err: any) {
-      set({ error: err.message, isSubmitting: false });
+      set({ error: err.response?.data?.message || err.message, isSubmitting: false });
     }
   },
 
