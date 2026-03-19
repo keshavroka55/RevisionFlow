@@ -71,9 +71,9 @@ const quillFormats = [
 /* ─── Highlight colours ────────────────────────────────────────────────── */
 const highlights = [
   { label: "Yellow", bg: "#FEF08A", text: "#713F12" },
-  { label: "Green",  bg: "#BBF7D0", text: "#14532D" },
-  { label: "Blue",   bg: "#BAE6FD", text: "#0C4A6E" },
-  { label: "Pink",   bg: "#FBCFE8", text: "#831843" },
+  { label: "Green", bg: "#BBF7D0", text: "#14532D" },
+  { label: "Blue", bg: "#BAE6FD", text: "#0C4A6E" },
+  { label: "Pink", bg: "#FBCFE8", text: "#831843" },
   { label: "Orange", bg: "#FED7AA", text: "#7C2D12" },
   { label: "Purple", bg: "#E9D5FF", text: "#581C87" },
 ];
@@ -277,16 +277,16 @@ export default function Notes() {
 
   const {
     notes, selectedNote, error,
-    fetchNotes, createNote, updateNote, deleteNote,
+    fetchNotes, fetchNoteById, createNote, updateNote, deleteNote,
     setSelectedNote, clearError,
   } = useNoteStore();
 
   const { folders, fetchFolders } = useFolderStore();
 
-  const isFetching  = useNoteLoading("note.fetchAll");
-  const isCreating  = useNoteLoading("note.create");
-  const isUpdating  = useNoteLoading("note.update");
-  const isDeleting  = useNoteLoading("note.delete");
+  const isFetching = useNoteLoading("note.fetchAll");
+  const isCreating = useNoteLoading("note.create");
+  const isUpdating = useNoteLoading("note.update");
+  const isDeleting = useNoteLoading("note.delete");
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -352,6 +352,18 @@ export default function Notes() {
     setNoteToDelete(null);
   };
 
+  const handleSelectNote = useCallback(async (note: any) => {
+    setSelectedNote(note);
+    setShowCreateForm(false);
+    setIsEditMode(false);
+
+    try {
+      await fetchNoteById(note.id);
+    } catch {
+      // keep selected list note if full fetch fails
+    }
+  }, [fetchNoteById, setSelectedNote]);
+
   const handleStartEdit = () => {
     if (!selectedNote) return;
     setIsEditMode(true);
@@ -378,6 +390,51 @@ export default function Notes() {
     setIsEditMode(false);
   };
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isSaveShortcut = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s";
+      if (!isSaveShortcut) return;
+
+      if (showCreateForm) {
+        e.preventDefault();
+        const canSaveCreate = !isCreating && !!newNote.title.trim() && !!htmlToPlainText(newNote.content);
+        if (canSaveCreate) void handleCreateNote();
+        return;
+      }
+
+      if (isEditMode) {
+        e.preventDefault();
+        const canSaveEdit = !isUpdating && !!editNote.title.trim() && !!editNote.content.trim();
+        if (canSaveEdit) void handleSaveEdit();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    showCreateForm,
+    isEditMode,
+    isCreating,
+    isUpdating,
+    newNote.title,
+    newNote.content,
+    editNote.title,
+    editNote.content,
+    handleCreateNote,
+    handleSaveEdit,
+  ]);
+
+  const processQuillHtml = (html: string): string => {
+  if (!html) return "";
+  return html
+    // Empty paragraphs (blank lines) → visible spacer
+    .replace(/<p><br\s*\/?><\/p>/gi, '<p style="min-height:1.6em;margin:0 0 0.2em 0;">&nbsp;</p>')
+    // Normal paragraphs → add bottom margin
+    .replace(/<p(\s[^>]*)?>/gi, '<p$1 style="margin:0 0 0.75em 0; padding:0;">')
+    // Standalone <br> inside content → keep as line break
+    .replace(/<br\s*\/?>/gi, '<br style="display:block;"/>');
+};
+
   /* ─── render ─────────────────────────────────────────────────────────── */
   return (
     <>
@@ -393,6 +450,52 @@ export default function Notes() {
         .ql-editor ul li, .ql-editor ol li { margin-bottom: 4px; }
         .ql-editor code { background: #f1f5f9; border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 0.9em; }
         .ql-toolbar { display: none; }
+
+        /* ── Note view mode ── */
+        .note-content {
+          overflow-x: hidden;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          white-space: normal;
+        }
+        .note-content * { box-sizing: border-box; }
+        .note-content p { margin: 0 0 0.75em 0 !important; padding: 0; line-height: 1.8; }
+        .note-content p:last-child { margin-bottom: 0 !important; }
+        .note-content h1 { font-size: 1.75rem; font-weight: 700; color: #0f172a; margin: 1em 0 0.5em 0 !important; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
+        .note-content h2 { font-size: 1.35rem; font-weight: 600; color: #1e293b; margin: 0.8em 0 0.4em 0 !important; }
+        .note-content h3 { font-size: 1.1rem; font-weight: 600; color: #334155; margin: 0.6em 0 0.3em 0 !important; }
+        .note-content blockquote { border-left: 4px solid #6366f1; padding: 10px 16px; color: #475569; font-style: italic; background: #f8f7ff; border-radius: 0 8px 8px 0; margin: 12px 0 !important; }
+        .note-content ul { list-style-type: disc; padding-left: 1.5em; margin: 0 0 1em 0 !important; }
+        .note-content ol { list-style-type: decimal; padding-left: 1.5em; margin: 0 0 1em 0 !important; }
+        .note-content li { margin-bottom: 4px; display: list-item; }
+        .note-content .ql-align-center { text-align: center; }
+        .note-content .ql-align-right { text-align: right; }
+        .note-content .ql-align-justify { text-align: justify; }
+        .note-content strong { font-weight: 700; }
+        .note-content em { font-style: italic; }
+        .note-content u { text-decoration: underline; }
+        .note-content s { text-decoration: line-through; }
+        .note-content a { color: #6366f1; text-decoration: underline; }
+        .note-content .ql-indent-1 { padding-left: 2em; }
+        .note-content .ql-indent-2 { padding-left: 4em; }
+        .note-content .ql-indent-3 { padding-left: 6em; }
+        .note-content code { background: #f1f5f9; border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 0.9em; }
+        .note-content pre {
+          background: #f1f5f9;
+          border-radius: 8px;
+          padding: 12px 16px;
+          overflow-x: auto;
+          margin-bottom: 1em !important;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        .note-content img,
+        .note-content video,
+        .note-content iframe,
+        .note-content table {
+          max-width: 100%;
+          height: auto;
+        }
       `}</style>
 
       <div className="h-screen flex overflow-hidden bg-slate-50" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -470,7 +573,7 @@ export default function Notes() {
             ) : notes.length > 0 ? notes.map(note => (
               <button
                 key={note.id}
-                onClick={() => { setSelectedNote(note); setShowCreateForm(false); setIsEditMode(false); }}
+                onClick={() => { void handleSelectNote(note); }}
                 className={`
                   w-full text-left px-4 py-3.5 border-b border-slate-100 hover:bg-slate-50 transition-colors relative group
                   ${selectedNote?.id === note.id ? "bg-indigo-50/70 border-l-2 border-l-indigo-500" : "border-l-2 border-l-transparent"}
@@ -788,9 +891,13 @@ export default function Notes() {
 
                     {/* Note content */}
                     <div
-                      className="bg-white rounded-2xl border border-slate-200 shadow-sm px-8 py-7 min-h-64 prose prose-slate max-w-none"
+                      className="note-content bg-white rounded-2xl border border-slate-200 shadow-sm px-8 py-7 min-h-64"
                       style={{ fontFamily: "Georgia, serif", lineHeight: 1.8, color: "#1e293b" }}
-                      dangerouslySetInnerHTML={{ __html: selectedNote.content?.html || `<p>${getNotePreviewText(selectedNote)}</p>` }}
+                      dangerouslySetInnerHTML={{
+                        __html: processQuillHtml(
+                          selectedNote.content?.html || `<p>${getNotePreviewText(selectedNote)}</p>`
+                        )
+                      }}
                     />
                   </>
                 )}

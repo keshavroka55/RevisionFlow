@@ -1,6 +1,7 @@
 // gemini.js  →  now uses local Ollama instead of Google Gemini cloud API
 
-const OLLAMA_URL = "http://localhost:11434/api/generate";
+// const OLLAMA_URL = "http://localhost:11434/api/generate"; // for localhost. 
+const OLLAMA_URL = "https://ollama-revisionflow.cfargotunnel.com/api/generate"; // cloudfare tunnel. 
 const OLLAMA_MODEL = "gpt-oss:120b-cloud"; // swap to whichever model you've pulled e.g. "llama3", "mistral", etc.
 
 /**
