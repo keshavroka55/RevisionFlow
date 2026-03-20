@@ -45,6 +45,8 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: /api
+        VITE_GOOGLE_AUTH_URL: https://revisionflow.keshavdev.me/api/auth/google
+
     container_name: revisionflow-web
     restart: unless-stopped
     depends_on:
