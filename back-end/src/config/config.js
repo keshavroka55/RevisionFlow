@@ -36,7 +36,5 @@ export const config = {
   isDev: (process.env.NODE_ENV || "development") === "development",
   isProd: process.env.NODE_ENV === "production",
 
-  GEMINI_API_KEY: required("GEMINI_API_KEY"),
-
 
 };
