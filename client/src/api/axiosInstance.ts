@@ -1,8 +1,8 @@
 import axisos from "axios";
 
 const api = axisos.create({
-    baseURL: "http://localhost:5000/api", 
-    withCredentials: true, 
+    baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
+    withCredentials: true,
     headers: {
         "Content-Type": "application/json",
     }
@@ -24,7 +24,7 @@ api.interceptors.response.use(
         return response;
     },
     (error) => {
-        if (error.response?.status === 401){
+        if (error.response?.status === 401) {
             // Keep control in the UI layer.
             localStorage.removeItem("token");
             delete api.defaults.headers.common["Authorization"];
