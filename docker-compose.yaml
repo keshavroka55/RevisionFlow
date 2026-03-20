@@ -24,7 +24,7 @@ services:
     container_name: revisionflow-api
     restart: unless-stopped
     env_file:
-      - ./back-end/.env
+      - .env
     depends_on:
       db:
         condition: service_healthy
