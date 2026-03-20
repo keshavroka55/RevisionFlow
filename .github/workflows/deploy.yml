@@ -15,7 +15,7 @@ jobs:
           port: 22
           script: |
             set -e
-            cd /opt/Revisionflow
+            cd /opt/RevisionFlow
             git fetch origin main
             git reset --hard origin/main
             docker compose -f docker-compose.prod.yml down
