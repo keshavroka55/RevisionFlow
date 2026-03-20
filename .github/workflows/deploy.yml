@@ -18,8 +18,8 @@ jobs:
             cd /opt/RevisionFlow
             git fetch origin main
             git reset --hard origin/main
-            docker compose -f docker-compose.yml down
-            docker compose -f docker-compose.yml up -d --build --remove-orphans
+            docker compose -f docker-compose.yaml down
+            docker compose -f docker-compose.yaml up -d --build --remove-orphans
             docker image prune -af --filter "until=168h"
-            docker compose -f docker-compose.yml ps
+            docker compose -f docker-compose.yaml ps
             echo "Deployed successfully!"
