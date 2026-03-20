@@ -126,7 +126,7 @@ export default function Folders() {
       {!isPremium && (
         <div className="bg-warning/10 border border-warning/20 rounded-xl p-4 mb-6">
           <div className="flex items-start gap-3">
-            <div className="bg-warning/20 w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
+            <div className="bg-warning/20 w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
               <FolderIcon className="w-5 h-5 text-warning" />
             </div>
             <div className="flex-1">

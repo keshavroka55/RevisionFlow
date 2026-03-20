@@ -1,0 +1,25 @@
+name: Deploy RevisionFlow to Production
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Production Server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            cd /opt/revisionflow
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose -f docker-compose.prod.yml down
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+            docker image prune -af --filter "until=168h"
+            docker compose -f docker-compose.prod.yml ps
+            echo "Deployed successfully!"

@@ -224,7 +224,7 @@ export const googleCallback = async (req, res) => {
       httpOnly: true,
       maxAge: 30 * 24 * 60 * 60 * 1000,
       sameSite: "lax",
-      secure: false,
+      secure: true,
       // secure: config.NODE_ENV === "production", // set to true in production
     });
 
